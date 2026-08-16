@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { UploadCloud, FilePlus2 } from 'lucide-react'
+import { Files, FilePlus2 } from 'lucide-react'
 
 interface DropzoneProps {
   onFilesSelected: (files: File[]) => void
@@ -121,7 +121,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
       />
 
       <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-sky-500/20 transition-transform duration-200 shadow-lg shadow-sky-950/40">
-        <UploadCloud className="w-10 h-10 sm:w-12 sm:h-12" />
+        <Files className="w-10 h-10 sm:w-12 sm:h-12" />
       </div>
 
       <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-100 mb-3 tracking-tight">

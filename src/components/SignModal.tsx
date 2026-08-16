@@ -8,7 +8,7 @@ import {
   Check,
   Star,
   XSquare,
-  UploadCloud,
+  ImagePlus,
   ChevronRight,
   ChevronLeft,
   Stamp,
@@ -813,7 +813,7 @@ export const SignModal: React.FC<SignModalProps> = ({
                     />
                   ) : (
                     <div className="space-y-2 text-slate-500">
-                      <UploadCloud className="w-8 h-8 mx-auto text-slate-400" />
+                      <ImagePlus className="w-8 h-8 mx-auto text-slate-400" />
                       <div className="text-xs font-bold text-slate-700">
                         Drag & drop signature image here or click to choose
                       </div>

@@ -1,5 +1,14 @@
 # Progress Log
 
+**2026-08-16 — Remove/Replace Cloud Upload Icons (code + build + docs). ✅ DONE**
+1. Replaced Cloud Upload Icons:
+   - Replaced `UploadCloud` icon with document-stack `Files` icon in main [`Dropzone.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/Dropzone.tsx#L123-L125) and fullscreen drag overlay [`DragOverlay.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/DragOverlay.tsx#L78-L80).
+   - Replaced `UploadCloud` icon with `ImagePlus` icon in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L815-L817) signature upload drop area.
+   - Accurately conveys client-side local document processing without cloud upload imagery.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/Dropzone.tsx`, `src/components/DragOverlay.tsx`, `src/components/SignModal.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-16 — Reset Page Ordering on File Reorder (code + build + docs). ✅ DONE**
 1. Reset Page Order on File Sequence Change:
    - Updated `moveSource` in [`PdfCoordinator.ts`](file:///c:/Tsahi/Coding/pdfTools/src/coordinator/PdfCoordinator.ts#L153-L160) to sort each document's pages by their original sequence (`sourcePageIndex`) when re-grouping pages by source document order.

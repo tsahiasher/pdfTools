@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { UploadCloud } from 'lucide-react'
+import { Files } from 'lucide-react'
 
 interface DragOverlayProps {
   onFilesSelected: (files: File[]) => void
@@ -76,7 +76,7 @@ export const DragOverlay: React.FC<DragOverlayProps> = ({ onFilesSelected }) => 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md transition-all duration-200 pointer-events-none select-none">
       <div className="border-2 border-dashed border-sky-400/90 bg-[#0f172a]/95 rounded-3xl p-10 sm:p-14 flex flex-col items-center justify-center text-center shadow-2xl shadow-sky-950/70 max-w-sm mx-4 transform scale-100 animate-in fade-in zoom-in-95 duration-150">
         <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-4 shadow-md">
-          <UploadCloud className="w-8 h-8" />
+          <Files className="w-8 h-8" />
         </div>
         <p className="text-base sm:text-lg font-bold text-slate-100 tracking-tight">
           Drop to add PDFs or images
