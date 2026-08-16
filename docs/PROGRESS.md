@@ -1,5 +1,13 @@
 # Progress Log
 
+**2026-08-16 — Reset Page Ordering on File Reorder (code + build + docs). ✅ DONE**
+1. Reset Page Order on File Sequence Change:
+   - Updated `moveSource` in [`PdfCoordinator.ts`](file:///c:/Tsahi/Coding/pdfTools/src/coordinator/PdfCoordinator.ts#L153-L160) to sort each document's pages by their original sequence (`sourcePageIndex`) when re-grouping pages by source document order.
+   - When a user customizes page ordering, triggers a source file reorder, and confirms "Reset & Reorder" in [`ReorderFilesWarningModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/ReorderFilesWarningModal.tsx), the pages within each file are now completely reset back to their ascending original order along with the files adopting the new sequence.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/coordinator/PdfCoordinator.ts`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-16 — Production Deployment to Firebase (safepdftools) (build + deploy + docs). ✅ DONE**
 1. Built clean production bundle via `npm run build`.
 2. Deployed to Firebase Hosting project `safepdftools` (`firebase deploy --only hosting --project safepdftools`).

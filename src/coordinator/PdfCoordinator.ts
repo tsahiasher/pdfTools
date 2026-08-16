@@ -153,7 +153,10 @@ export class PdfCoordinator {
     const reorderedPages: PageDescriptor[] = []
     for (const id of sourceIds) {
       const list = pagesBySource.get(id)
-      if (list) reorderedPages.push(...list)
+      if (list) {
+        list.sort((a, b) => a.sourcePageIndex - b.sourcePageIndex)
+        reorderedPages.push(...list)
+      }
     }
 
     this.state.pages = reorderedPages
