@@ -461,7 +461,14 @@ export const PageGrid: React.FC<PageGridProps> = ({
       stopAutoScroll()
 
       if (dragRef.current && dragRef.current.isStarted) {
-        onReorderMultiple(dragRef.current.draggedIds, dragRef.current.insertIndex)
+        const draggedIds = dragRef.current.draggedIds
+        const insertIndex = dragRef.current.insertIndex
+        onReorderMultiple(draggedIds, insertIndex)
+
+        // If a single page was dragged, deselect it after dropping
+        if (draggedIds.length === 1) {
+          onToggleSelect(draggedIds[0], false)
+        }
       }
 
       dragRef.current = null

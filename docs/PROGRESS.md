@@ -1,5 +1,20 @@
 # Progress Log
 
+**2026-08-17 — Documentation: Firebase Deployment Command in README (docs). ✅ DONE**
+1. Documented Firebase Deployment:
+   - Added `Deployment` section to [`README.md`](file:///c:/Tsahi/Coding/pdfTools/README.md#L109-L125) detailing steps to build and deploy to Firebase Hosting (`firebase deploy --only hosting --project safepdftools` and Windows PowerShell `firebase.cmd`).
+Proof: Verified markdown formatting.
+Files touched: `README.md`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-17 — Deselect Single Page After Drag & Drop (code + build + docs). ✅ DONE**
+1. Deselect Single Dragged Page on Drop:
+   - Updated `onPointerUp` in [`PageGrid.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/PageGrid.tsx#L463-L473) so that when a single page is dragged and dropped to reorder, it is automatically deselected (`onToggleSelect(draggedIds[0], false)`).
+   - Multi-page group drags retain their selection after dropping.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/PageGrid.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-16 — Remove/Replace Cloud Upload Icons (code + build + docs). ✅ DONE**
 1. Replaced Cloud Upload Icons:
    - Replaced `UploadCloud` icon with document-stack `Files` icon in main [`Dropzone.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/Dropzone.tsx#L123-L125) and fullscreen drag overlay [`DragOverlay.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/DragOverlay.tsx#L78-L80).

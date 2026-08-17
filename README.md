@@ -104,7 +104,24 @@ npm run build
 npm run preview
 ```
 
-The compiled production bundle is generated in the `dist/` folder, ready for static web hosting (e.g. Firebase Hosting, Cloudflare Pages, Vercel, or GitHub Pages).
+The compiled production bundle is generated in the `dist/` folder.
+
+### Deployment
+
+Deploy to **Firebase Hosting**:
+
+```bash
+# 1. Build the production bundle
+npm run build
+
+# 2. Deploy to Firebase Hosting (safepdftools)
+firebase deploy --only hosting --project safepdftools
+```
+
+> **Note on Windows (PowerShell):** If script execution policies prevent running `firebase`, use `firebase.cmd`:
+> ```powershell
+> firebase.cmd deploy --only hosting --project safepdftools
+> ```
 
 ---
 
