@@ -22,9 +22,8 @@ interface PrintModalProps {
 
 const PrintPreviewViewer: React.FC<{
   page: PageDescriptor
-  colorMode: 'color' | 'grayscale'
   pageNumber: number
-}> = ({ page, colorMode, pageNumber }) => {
+}> = ({ page, pageNumber }) => {
   const { dataUrl, isLoading, error } = useThumbnail({
     sourceId: page.sourceId,
     pageIndex: page.sourcePageIndex,
@@ -59,7 +58,6 @@ const PrintPreviewViewer: React.FC<{
           alt={`Preview Page ${pageNumber}`}
           style={{
             transform: `rotate(${page.rotation}deg)`,
-            filter: colorMode === 'grayscale' ? 'grayscale(100%)' : 'none',
           }}
           className="max-h-[60vh] w-auto max-w-full object-contain rounded bg-white shadow-2xl border border-slate-300 transition-all duration-200"
         />
@@ -76,9 +74,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   selectedPageIds,
   onClose,
 }) => {
-  const [copies, setCopies] = useState<number>(1)
-  const [colorMode, setColorMode] = useState<'color' | 'grayscale'>('color')
-  const [duplex, setDuplex] = useState<string>('single')
   const [pageScope, setPageScope] = useState<'all' | 'selected' | 'custom'>(
     selectedPageIds.size > 0 ? 'selected' : 'all'
   )
@@ -155,8 +150,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       return
     }
 
-    const isGrayscale = colorMode === 'grayscale'
-
     // Build print HTML containing only the target pages
     frameDoc.open()
     frameDoc.write(`
@@ -173,7 +166,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               margin: 0;
               padding: 0;
               background: white;
-              ${isGrayscale ? 'filter: grayscale(100%);' : ''}
             }
             .page-container {
               page-break-after: always;
@@ -244,7 +236,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[90vh] max-h-[850px] shadow-2xl flex flex-col overflow-hidden text-slate-100">
-        {/* Modal Window Title Bar matching screenshot */}
+        {/* Modal Window Title Bar */}
         <div className="px-4 py-2.5 bg-[#0b1120] border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Printer className="w-4 h-4 text-sky-400" />
@@ -271,93 +263,23 @@ export const PrintModal: React.FC<PrintModalProps> = ({
         {/* 2-Column Content Area */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Left Column: Settings Panel */}
-          <div className="w-full md:w-80 lg:w-96 bg-[#131d2a] border-r border-slate-800 p-5 flex flex-col justify-between overflow-y-auto space-y-6">
-            <div className="space-y-5">
+          <div className="w-full md:w-80 lg:w-96 bg-[#131d2a] border-r border-slate-800 p-4 sm:p-5 flex flex-col justify-between overflow-y-auto">
+            <div className="space-y-4">
               {/* Header Title */}
               <div>
                 <div className="flex items-center space-x-2">
-                  <Printer className="w-5 h-5 text-sky-400" />
-                  <h2 className="text-base font-bold text-slate-100">Print Document Settings</h2>
+                  <Printer className="w-4 h-4 text-sky-400" />
+                  <h2 className="text-sm font-bold text-slate-100">Pages to Print</h2>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Configure printer settings and review page preview.
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Select which pages to include in the print job.
                 </p>
-              </div>
-
-              {/* Printer Destination */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Printer Destination:</label>
-                <select className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
-                  <option>System Default Printer</option>
-                  <option>Save as PDF</option>
-                </select>
-              </div>
-
-              {/* Copies */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Copies:</label>
-                <div className="flex items-center space-x-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={copies}
-                      onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                      className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Color Mode */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300">Color Mode:</label>
-                <div className="space-y-2 text-xs text-slate-300">
-                  <label className="flex items-center space-x-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="printColorMode"
-                      checked={colorMode === 'color'}
-                      onChange={() => setColorMode('color')}
-                      className="text-sky-500 focus:ring-0"
-                    />
-                    <span>Color (Full Color)</span>
-                  </label>
-                  <label className="flex items-center space-x-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="printColorMode"
-                      checked={colorMode === 'grayscale'}
-                      onChange={() => setColorMode('grayscale')}
-                      className="text-sky-500 focus:ring-0"
-                    />
-                    <span>Black & White (Grayscale)</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Two-Sided Printing (Duplex) */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">
-                  Two-Sided Printing (Duplex):
-                </label>
-                <select
-                  value={duplex}
-                  onChange={(e) => setDuplex(e.target.value)}
-                  className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
-                >
-                  <option value="single">Single-Sided (1 Sided)</option>
-                  <option value="duplex-long">Duplex (Flip on Long Edge)</option>
-                  <option value="duplex-short">Duplex (Flip on Short Edge)</option>
-                </select>
               </div>
 
               {/* Pages to Print */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300">Pages to Print:</label>
                 <div className="space-y-2 text-xs text-slate-300">
-                  <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="radio"
                       name="printPagesScope"
@@ -365,10 +287,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       onChange={() => setPageScope('all')}
                       className="text-sky-500 focus:ring-0"
                     />
-                    <span>All Pages</span>
+                    <span>All Pages ({pages.length})</span>
                   </label>
 
-                  <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="radio"
                       name="printPagesScope"
@@ -379,35 +301,48 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <span>Selected Pages Only ({selectedPageIds.size})</span>
                   </label>
 
-                  <label className="flex items-center space-x-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="printPagesScope"
-                      checked={pageScope === 'custom'}
-                      onChange={() => setPageScope('custom')}
-                      className="text-sky-500 focus:ring-0"
-                    />
-                    <span>Custom Range:</span>
-                    {pageScope === 'custom' && (
+                  <div className="space-y-1.5">
+                    <label className="flex items-center space-x-2 cursor-pointer">
                       <input
-                        type="text"
-                        placeholder="e.g. 1-3"
-                        value={customRange}
-                        onChange={(e) => setCustomRange(e.target.value)}
-                        className="w-20 bg-[#0c131c] border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-sky-500 ml-2"
+                        type="radio"
+                        name="printPagesScope"
+                        checked={pageScope === 'custom'}
+                        onChange={() => setPageScope('custom')}
+                        className="text-sky-500 focus:ring-0"
                       />
+                      <span>Custom Range</span>
+                    </label>
+
+                    {pageScope === 'custom' && (
+                      <div className="pl-6">
+                        <input
+                          type="text"
+                          placeholder="e.g. 1-3, 5, 8-10"
+                          value={customRange}
+                          onChange={(e) => setCustomRange(e.target.value)}
+                          className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+                          autoFocus
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Specify page numbers and/or ranges separated by commas.
+                        </p>
+                      </div>
                     )}
-                  </label>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Buttons */}
-            <div className="space-y-2 pt-4">
+            {/* Bottom Action Buttons */}
+            <div className="space-y-2.5 pt-3 border-t border-slate-800/80 mt-2">
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Clicking print opens your browser & OS dialog where you can pick any installed printer, network printer, or Save as PDF.
+              </p>
+
               <button
                 onClick={handlePrint}
                 disabled={isPrinting || targetPages.length === 0}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+                className="w-full flex items-center justify-center space-x-2 py-2 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {isPrinting ? (
                   <>
@@ -424,14 +359,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
               <button
                 onClick={onClose}
-                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                className="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>
             </div>
           </div>
 
-          {/* Right Column: Preview Area matching screenshot */}
+          {/* Right Column: Preview Area */}
           <div className="flex-1 bg-[#0c131c] flex flex-col overflow-hidden">
             {/* Preview Sub-bar */}
             <div className="px-6 py-3 border-b border-slate-800/80 flex items-center justify-between bg-[#0f172a]">
@@ -479,7 +414,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <PrintPreviewViewer
                   key={currentPage.id}
                   page={currentPage}
-                  colorMode={colorMode}
                   pageNumber={safeIndex + 1}
                 />
               )}

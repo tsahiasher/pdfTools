@@ -1,5 +1,15 @@
 # Progress Log
 
+**2026-08-17 — Print Dialog: Streamlined Page Scope Only (code + build + docs). ✅ DONE**
+1. Streamlined Print Dialog:
+   - Removed redundant **Copies** and **Color Mode** settings (delegated directly to the native OS / browser print dialog).
+   - Left settings panel is now dedicated exclusively to **Pages to Print** (All Pages, Selected Pages Only, or Custom Range).
+   - Positioned explanation note directly above **Print Document** button.
+   - Clean, compact, non-scrolling modal layout.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/PrintModal.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-17 — Documentation: Firebase Deployment Command in README (docs). ✅ DONE**
 1. Documented Firebase Deployment:
    - Added `Deployment` section to [`README.md`](file:///c:/Tsahi/Coding/pdfTools/README.md#L109-L125) detailing steps to build and deploy to Firebase Hosting (`firebase deploy --only hosting --project safepdftools` and Windows PowerShell `firebase.cmd`).
