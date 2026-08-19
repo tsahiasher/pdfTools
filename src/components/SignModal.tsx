@@ -280,22 +280,77 @@ export const SignModal: React.FC<SignModalProps> = ({
     setSelectedLibraryItem(null)
   }
 
-  // Generate transparent PNG from Typed Text (Black)
+  // Generate transparent PNG from Typed Text cropped tightly to text bounding box
   const generateTypedDataUrl = useCallback((): string => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 600
-    canvas.height = 200
-    const ctx = canvas.getContext('2d')
+    const textToRender = typedText.trim() || 'Signature'
+    const tempCanvas = document.createElement('canvas')
+    const fontSize = 72
+    tempCanvas.width = 1600
+    tempCanvas.height = 400
+    const ctx = tempCanvas.getContext('2d')
     if (!ctx) return ''
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.font = `64px "${selectedFont}", cursive, sans-serif`
+    ctx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
+    ctx.font = `${fontSize}px "${selectedFont}", cursive, sans-serif`
     ctx.fillStyle = '#000000' // Black
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(typedText || 'Signature', canvas.width / 2, canvas.height / 2)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
 
-    return canvas.toDataURL('image/png')
+    // Draw text with safety margin
+    const startX = 50
+    const startY = 250
+    ctx.fillText(textToRender, startX, startY)
+
+    // Analyze pixel bounding box to crop accurately
+    const imgData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
+    const { data, width, height } = imgData
+
+    let minX = width
+    let minY = height
+    let maxX = -1
+    let maxY = -1
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const alpha = data[(y * width + x) * 4 + 3]
+        if (alpha > 10) {
+          if (x < minX) minX = x
+          if (x > maxX) maxX = x
+          if (y < minY) minY = y
+          if (y > maxY) maxY = y
+        }
+      }
+    }
+
+    if (maxX < minX || maxY < minY) {
+      return tempCanvas.toDataURL('image/png')
+    }
+
+    const padding = 10
+    const cropX = Math.max(0, minX - padding)
+    const cropY = Math.max(0, minY - padding)
+    const cropWidth = Math.min(width - cropX, maxX - minX + 1 + padding * 2)
+    const cropHeight = Math.min(height - cropY, maxY - minY + 1 + padding * 2)
+
+    const croppedCanvas = document.createElement('canvas')
+    croppedCanvas.width = cropWidth
+    croppedCanvas.height = cropHeight
+    const croppedCtx = croppedCanvas.getContext('2d')
+    if (!croppedCtx) return tempCanvas.toDataURL('image/png')
+
+    croppedCtx.drawImage(
+      tempCanvas,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      cropWidth,
+      cropHeight
+    )
+
+    return croppedCanvas.toDataURL('image/png')
   }, [typedText, selectedFont])
 
   // Generate transparent PNG from Draw Canvas (Black)
@@ -645,71 +700,69 @@ export const SignModal: React.FC<SignModalProps> = ({
             </div>
 
             {/* TAB 1: DRAW */}
-            {activeTab === 'draw' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-end space-x-3 text-xs text-slate-300">
-                  <span>Thickness:</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={8}
-                    value={penThickness}
-                    onChange={(e) => setPenThickness(parseInt(e.target.value, 10))}
-                    className="w-32 accent-sky-500 cursor-pointer"
-                  />
-                  <span className="w-6 font-mono text-sky-400">{penThickness}px</span>
-                </div>
-
-                <div className="relative bg-white rounded-xl border border-slate-300 shadow-inner h-44 flex items-center justify-center overflow-hidden">
-                  <canvas
-                    ref={drawCanvasRef}
-                    width={800}
-                    height={220}
-                    onMouseDown={startPainting}
-                    onMouseMove={paint}
-                    onMouseUp={stopPainting}
-                    onMouseLeave={stopPainting}
-                    className="w-full h-full cursor-crosshair touch-none"
-                  />
-                  {!hasDrawnContent && (
-                    <div className="absolute pointer-events-none text-slate-400 text-xs font-medium">
-                      Draw your signature here with mouse or pen
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-center space-x-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleUndo}
-                    disabled={history.length === 0}
-                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Undo</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleClearCanvas}
-                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    disabled={!hasDrawnContent}
-                    className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save to Library</span>
-                  </button>
-                </div>
+            <div className={`space-y-3 ${activeTab === 'draw' ? 'block' : 'hidden'}`}>
+              <div className="flex items-center justify-end space-x-3 text-xs text-slate-300">
+                <span>Thickness:</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={8}
+                  value={penThickness}
+                  onChange={(e) => setPenThickness(parseInt(e.target.value, 10))}
+                  className="w-32 accent-sky-500 cursor-pointer"
+                />
+                <span className="w-6 font-mono text-sky-400">{penThickness}px</span>
               </div>
-            )}
+
+              <div className="relative bg-white rounded-xl border border-slate-300 shadow-inner h-44 flex items-center justify-center overflow-hidden">
+                <canvas
+                  ref={drawCanvasRef}
+                  width={800}
+                  height={220}
+                  onMouseDown={startPainting}
+                  onMouseMove={paint}
+                  onMouseUp={stopPainting}
+                  onMouseLeave={stopPainting}
+                  className="w-full h-full cursor-crosshair touch-none"
+                />
+                {!hasDrawnContent && (
+                  <div className="absolute pointer-events-none text-slate-400 text-xs font-medium">
+                    Draw your signature here with mouse or pen
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center space-x-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={history.length === 0}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearCanvas}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveToLibrary}
+                  disabled={!hasDrawnContent}
+                  className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save to Library</span>
+                </button>
+              </div>
+            </div>
 
             {/* TAB 2: TYPE */}
             {activeTab === 'type' && (
@@ -956,7 +1009,11 @@ export const SignModal: React.FC<SignModalProps> = ({
                   {savedLibrary.map((item, idx) => (
                     <div
                       key={idx}
-                      onClick={() => setSelectedLibraryItem(item)}
+                      onClick={() => {
+                        setSelectedLibraryItem(item)
+                        setUploadedDataUrl(item)
+                        setActiveTab('upload')
+                      }}
                       className={`relative bg-white rounded-xl p-2 h-16 w-32 shrink-0 flex items-center justify-center cursor-pointer border transition-all ${
                         selectedLibraryItem === item
                           ? 'border-[#0284c7] ring-2 ring-[#0284c7] shadow-lg shadow-sky-950/50'

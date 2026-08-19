@@ -1,5 +1,29 @@
 # Progress Log
 
+**2026-08-19 — Tight Cropping of Typed Signatures (code + build + docs). ✅ DONE**
+1. Crop Typed Signatures Around Text:
+   - Updated `generateTypedDataUrl` in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L283-L355) with pixel-level bounding box scanning.
+   - The generated image is cropped tightly around the typed text with minimal padding, preventing excess transparent whitespace and ensuring the signature fills the placed target box accurately on the document.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/SignModal.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-19 — Persist Drawn Signature Canvas Across Tab Switching (code + build + docs). ✅ DONE**
+1. Preserve Draw Canvas on Tab Switch:
+   - Modified the **Draw** tab container in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L647-L710) to toggle visibility via CSS (`display: none` / `block`) instead of conditionally unmounting the DOM elements.
+   - Any drawn strokes, canvas lines, and undo history are fully preserved when switching to **Type**, **Upload**, or **Symbol** and returning back to **Draw**.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/SignModal.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-19 — Saved Signature Selection: Switch to Upload Tab Preview (code + build + docs). ✅ DONE**
+1. Saved Signature Preview on Selection:
+   - Updated the saved signature click handler in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L956-L965) so that clicking any item in the **Saved Signatures Library** immediately sets `uploadedDataUrl` and switches the active tab to **Upload**.
+   - The selected signature is clearly displayed in the large upload preview area so the user can immediately see exactly which signature is going to be applied.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/SignModal.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-17 — Print Dialog: Streamlined Page Scope Only (code + build + docs). ✅ DONE**
 1. Streamlined Print Dialog:
    - Removed redundant **Copies** and **Color Mode** settings (delegated directly to the native OS / browser print dialog).
