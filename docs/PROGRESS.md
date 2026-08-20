@@ -1,5 +1,13 @@
 # Progress Log
 
+**2026-08-20 — Distinct Icon for Revert All Action (code + build + docs). ✅ DONE**
+1. Replaced Revert All Icon:
+   - Changed the icon for **Revert All** in [`TopNavbar.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/TopNavbar.tsx#L93-L103) from `RotateCcw` to `Undo2` (`<Undo2 className="w-3.5 h-3.5 text-amber-400/90" />`).
+   - Distinguishes **Revert All** (restoring uploaded documents to original state) from the **Rotate CCW** counter-clockwise rotation action (`RotateCcw`).
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/TopNavbar.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-19 — Tight Cropping of Typed Signatures (code + build + docs). ✅ DONE**
 1. Crop Typed Signatures Around Text:
    - Updated `generateTypedDataUrl` in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L283-L355) with pixel-level bounding box scanning.

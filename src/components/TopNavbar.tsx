@@ -2,7 +2,7 @@ import React, { useRef } from 'react'
 import {
   Layers,
   Plus,
-  RotateCcw,
+  Undo2,
   Trash2,
   Image as ImageIcon,
   FileCheck2,
@@ -97,7 +97,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 shrink-0"
             title="Revert all changes to original uploaded files"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <Undo2 className="w-3.5 h-3.5 text-amber-400/90" />
             <span>Revert All</span>
           </button>
 
