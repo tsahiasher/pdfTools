@@ -17,6 +17,7 @@ interface PageCardProps {
   source?: PdfSource
   isSelected: boolean
   isDragging?: boolean
+  zoomLevel?: number
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
   onSelect: (e: React.MouseEvent) => void
   onRotateLeft: (e: React.MouseEvent) => void
@@ -31,6 +32,7 @@ export const PageCard: React.FC<PageCardProps> = ({
   source,
   isSelected,
   isDragging = false,
+  zoomLevel = 3,
   onPointerDown,
   onSelect,
   onRotateLeft,
@@ -38,10 +40,28 @@ export const PageCard: React.FC<PageCardProps> = ({
   onSign,
   onDelete,
 }) => {
+  // Compute thumbnail quality / resolution based on zoomLevel (1..5)
+  const thumbnailMaxWidth = React.useMemo(() => {
+    switch (zoomLevel) {
+      case 1:
+        return 200
+      case 2:
+        return 280
+      case 3:
+        return 380
+      case 4:
+        return 500
+      case 5:
+        return 700
+      default:
+        return 380
+    }
+  }, [zoomLevel])
+
   const { dataUrl, isLoading, error, elementRef } = useThumbnail({
     sourceId: page.sourceId,
     pageIndex: page.sourcePageIndex,
-    maxWidth: 350,
+    maxWidth: thumbnailMaxWidth,
     lazy: true,
     imagePreviewUrl: page.imagePreviewUrl,
   })
@@ -102,7 +122,19 @@ export const PageCard: React.FC<PageCardProps> = ({
       </div>
 
       {/* Center White Paper Preview Area */}
-      <div className="relative flex-1 min-h-[220px] max-h-[280px] bg-[#0c131c] p-3 flex items-center justify-center overflow-hidden">
+      <div
+        className={`relative flex-1 bg-[#0c131c] p-2.5 sm:p-3 flex items-center justify-center overflow-hidden ${
+          zoomLevel === 1
+            ? 'min-h-[140px] max-h-[180px]'
+            : zoomLevel === 2
+            ? 'min-h-[180px] max-h-[230px]'
+            : zoomLevel === 3
+            ? 'min-h-[240px] max-h-[300px]'
+            : zoomLevel === 4
+            ? 'min-h-[320px] max-h-[400px]'
+            : 'min-h-[420px] max-h-[520px]'
+        }`}
+      >
         {isLoading && (
           <div className="flex flex-col items-center justify-center text-slate-400 space-y-1.5">
             <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
@@ -119,15 +151,39 @@ export const PageCard: React.FC<PageCardProps> = ({
 
         {dataUrl && !isLoading && !error && (
           <div className="relative flex items-center justify-center w-full h-full">
-            <div className="relative inline-block max-h-[220px]">
+            <div
+              className="relative inline-block"
+              style={{
+                maxHeight:
+                  zoomLevel === 1
+                    ? '140px'
+                    : zoomLevel === 2
+                    ? '180px'
+                    : zoomLevel === 3
+                    ? '240px'
+                    : zoomLevel === 4
+                    ? '320px'
+                    : '420px',
+              }}
+            >
               <img
                 src={dataUrl}
                 alt={`${page.sourceName} p. ${page.sourcePageIndex + 1}`}
                 style={{
                   transform: `rotate(${page.rotation}deg)`,
                   transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  maxHeight:
+                    zoomLevel === 1
+                      ? '140px'
+                      : zoomLevel === 2
+                      ? '180px'
+                      : zoomLevel === 3
+                      ? '240px'
+                      : zoomLevel === 4
+                      ? '320px'
+                      : '420px',
                 }}
-                className="max-h-[220px] w-auto max-w-full object-contain rounded bg-white shadow-md border border-slate-200 pointer-events-none"
+                className="w-auto max-w-full object-contain rounded bg-white shadow-md border border-slate-200 pointer-events-none"
                 loading="lazy"
               />
 

@@ -158,11 +158,31 @@ function calculateGridInsertIndex(
 /**
  * Floating thumbnail for the lifted card following the cursor
  */
-const LiftedPageThumbnail: React.FC<{ page: PageDescriptor }> = ({ page }) => {
+const LiftedPageThumbnail: React.FC<{ page: PageDescriptor; zoomLevel: number }> = ({
+  page,
+  zoomLevel,
+}) => {
+  const thumbnailMaxWidth = React.useMemo(() => {
+    switch (zoomLevel) {
+      case 1:
+        return 200
+      case 2:
+        return 280
+      case 3:
+        return 380
+      case 4:
+        return 500
+      case 5:
+        return 700
+      default:
+        return 380
+    }
+  }, [zoomLevel])
+
   const { dataUrl } = useThumbnail({
     sourceId: page.sourceId,
     pageIndex: page.sourcePageIndex,
-    maxWidth: 350,
+    maxWidth: thumbnailMaxWidth,
     lazy: false,
     imagePreviewUrl: page.imagePreviewUrl,
   })
@@ -175,15 +195,27 @@ const LiftedPageThumbnail: React.FC<{ page: PageDescriptor }> = ({ page }) => {
     )
   }
 
+  const maxHeightStyle =
+    zoomLevel === 1
+      ? '140px'
+      : zoomLevel === 2
+      ? '180px'
+      : zoomLevel === 3
+      ? '240px'
+      : zoomLevel === 4
+      ? '320px'
+      : '420px'
+
   return (
-    <div className="relative inline-block max-h-[200px]">
+    <div className="relative inline-block" style={{ maxHeight: maxHeightStyle }}>
       <img
         src={dataUrl}
         alt={`Page ${page.sourcePageIndex + 1}`}
         style={{
           transform: `rotate(${page.rotation}deg)`,
+          maxHeight: maxHeightStyle,
         }}
-        className="max-h-[190px] w-auto max-w-full object-contain rounded bg-white shadow-xl border border-slate-200 pointer-events-none"
+        className="w-auto max-w-full object-contain rounded bg-white shadow-xl border border-slate-200 pointer-events-none"
       />
       {page.signatures &&
         page.signatures.map((sig) => (
@@ -543,6 +575,7 @@ export const PageGrid: React.FC<PageGridProps> = ({
                   source={sources.get(item.page.sourceId)}
                   isSelected={selectedPageIds.has(item.page.id)}
                   isDragging={false}
+                  zoomLevel={zoomLevel}
                   onPointerDown={(e) => handlePointerDownCard(item.page!, e)}
                   onSelect={(e) => handleCardClick(item.page!.id, e)}
                   onRotateLeft={() => onRotatePage(item.page!.id, -90)}
@@ -554,9 +587,9 @@ export const PageGrid: React.FC<PageGridProps> = ({
             ) : (
               /* Empty Space in Grid matching user reference */
               <div
-                className="w-full h-full min-h-[260px] rounded-xl pointer-events-none select-none opacity-0"
+                className="w-full h-full rounded-xl pointer-events-none select-none opacity-0"
                 style={{
-                  minHeight: activeDrag ? `${activeDrag.cardHeight}px` : '260px',
+                  minHeight: activeDrag ? `${activeDrag.cardHeight}px` : '200px',
                 }}
                 aria-hidden="true"
               />
@@ -603,7 +636,7 @@ export const PageGrid: React.FC<PageGridProps> = ({
 
           {/* White Paper Preview */}
           <div className="relative flex-1 bg-[#0c131c] p-3 flex items-center justify-center overflow-hidden">
-            <LiftedPageThumbnail page={activeDrag.primaryPage} />
+            <LiftedPageThumbnail page={activeDrag.primaryPage} zoomLevel={zoomLevel} />
           </div>
 
           {/* Bottom Footer */}

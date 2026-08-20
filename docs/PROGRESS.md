@@ -1,5 +1,21 @@
 # Progress Log
 
+**2026-08-20 — True Zoom Scaling for Page Thumbnails & Drag-and-Drop (code + build + docs). ✅ DONE**
+1. Dynamic Page Image & Container Scaling:
+   - Updated [`PageCard.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/PageCard.tsx#L122-L165) so that the white page image and preview container scale dynamically with the 5 zoom levels (from 140px up to 420px max height), rather than remaining static while only the outer card expanded.
+   - Dynamically scaled the thumbnail rendering canvas resolution in `useThumbnail` (from 200px up to 700px max width) for crisp high-dpi clarity at larger zoom levels.
+   - Updated drag-and-drop placeholder slots and [`LiftedPageThumbnail`](file:///c:/Tsahi/Coding/pdfTools/src/components/PageGrid.tsx#L158-L208) in [`PageGrid.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/PageGrid.tsx) to match the exact physical dimensions and zoom scaling during drag-and-drop reordering.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/PageCard.tsx`, `src/components/PageGrid.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-20 — Default Arrow Cursor on Disabled Bookmarks Option (code + build + docs). ✅ DONE**
+1. Default Arrow Cursor on Bookmarks:
+   - Updated the **Bookmarks** `<label>` and `<input type="checkbox">` in [`TopNavbar.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/TopNavbar.tsx#L160-L175) to use standard arrow cursor (`cursor-default`) across disabled and active states, matching all other navigation and toolbar buttons.
+Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
+Files touched: `src/components/TopNavbar.tsx`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-20 — Distinct Icon for Revert All Action (code + build + docs). ✅ DONE**
 1. Replaced Revert All Icon:
    - Changed the icon for **Revert All** in [`TopNavbar.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/TopNavbar.tsx#L93-L103) from `RotateCcw` to `Undo2` (`<Undo2 className="w-3.5 h-3.5 text-amber-400/90" />`).

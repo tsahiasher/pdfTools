@@ -158,10 +158,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
           {/* Bookmarks Checkbox near Merge & Save All button */}
           <label
-            className={`inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium select-none transition-colors shrink-0 ${
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium select-none transition-colors shrink-0 cursor-default ${
               pageCount === 0 || isProcessing || isExporting
-                ? 'opacity-40 cursor-not-allowed border-slate-800 bg-slate-900/40 text-slate-500'
-                : 'cursor-pointer border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white'
+                ? 'opacity-40 border-slate-800 bg-slate-900/40 text-slate-500'
+                : 'border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white'
             }`}
             title="Preserve and generate PDF Bookmarks / Outlines in merged output"
           >
@@ -170,7 +170,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               checked={includeBookmarks}
               onChange={(e) => onToggleBookmarks(e.target.checked)}
               disabled={isProcessing || isExporting || pageCount === 0}
-              className="w-3.5 h-3.5 rounded bg-slate-900 border-slate-600 text-[#0284c7] focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed accent-[#0284c7]"
+              className="w-3.5 h-3.5 rounded bg-slate-900 border-slate-600 text-[#0284c7] focus:ring-0 focus:ring-offset-0 cursor-default accent-[#0284c7]"
             />
             <Bookmark
               className={`w-3.5 h-3.5 ${
