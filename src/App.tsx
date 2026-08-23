@@ -164,10 +164,13 @@ export const App: React.FC = () => {
     }
   }
 
-  const handleSplitConfirm = async (parts: { name: string; pages: PageDescriptor[] }[]) => {
+  const handleSplitConfirm = async (
+    parts: { name: string; pages: PageDescriptor[] }[],
+    asZip = false
+  ) => {
     try {
       setIsSplitModalOpen(false)
-      await exportSplitPdf(parts)
+      await exportSplitPdf(parts, asZip)
     } catch {
       // Error handled in coordinator
     }

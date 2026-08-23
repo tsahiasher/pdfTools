@@ -9,6 +9,7 @@ import {
   PenTool,
 } from 'lucide-react'
 import { useThumbnail } from '../hooks/useThumbnail'
+import { getSignatureIntrinsicState } from '../lib/signatureUtils'
 import type { PageDescriptor, PdfSource } from '../domain/types'
 
 interface PageCardProps {
@@ -154,6 +155,8 @@ export const PageCard: React.FC<PageCardProps> = ({
             <div
               className="relative inline-block"
               style={{
+                transform: `rotate(${page.rotation}deg)`,
+                transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 maxHeight:
                   zoomLevel === 1
                     ? '140px'
@@ -170,8 +173,6 @@ export const PageCard: React.FC<PageCardProps> = ({
                 src={dataUrl}
                 alt={`${page.sourceName} p. ${page.sourcePageIndex + 1}`}
                 style={{
-                  transform: `rotate(${page.rotation}deg)`,
-                  transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   maxHeight:
                     zoomLevel === 1
                       ? '140px'
@@ -183,28 +184,33 @@ export const PageCard: React.FC<PageCardProps> = ({
                       ? '320px'
                       : '420px',
                 }}
-                className="w-auto max-w-full object-contain rounded bg-white shadow-md border border-slate-200 pointer-events-none"
+                className="w-auto max-w-full object-contain rounded bg-white shadow-md border border-slate-200 pointer-events-none block"
                 loading="lazy"
               />
 
               {/* Render Signature Overlays directly on page thumbnail */}
               {page.signatures &&
-                page.signatures.map((sig) => (
-                  <img
-                    key={sig.id}
-                    src={sig.imageDataUrl}
-                    alt="Signature overlay"
-                    style={{
-                      position: 'absolute',
-                      left: `${sig.xPercent}%`,
-                      top: `${sig.yPercent}%`,
-                      width: `${sig.widthPercent}%`,
-                      height: `${sig.heightPercent}%`,
-                      objectFit: 'contain',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                ))}
+                page.signatures.map((sig) => {
+                  const intrinsic = getSignatureIntrinsicState(sig)
+                  return (
+                    <img
+                      key={sig.id}
+                      src={sig.imageDataUrl}
+                      alt="Signature overlay"
+                      style={{
+                        position: 'absolute',
+                        left: `${intrinsic.xPercent}%`,
+                        top: `${intrinsic.yPercent}%`,
+                        width: `${intrinsic.widthPercent}%`,
+                        height: `${intrinsic.heightPercent}%`,
+                        transform: `rotate(${intrinsic.intrinsicRotation}deg)`,
+                        transformOrigin: 'center center',
+                        objectFit: 'contain',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )
+                })}
             </div>
           </div>
         )}

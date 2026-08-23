@@ -17,7 +17,7 @@ import {
   MousePointerClick,
 } from 'lucide-react'
 import type { PageDescriptor } from '../domain/types'
-import { useThumbnail } from '../hooks/useThumbnail'
+import { globalCoordinator } from '../coordinator/PdfCoordinator'
 
 interface SignModalProps {
   isOpen: boolean
@@ -31,6 +31,7 @@ interface SignModalProps {
       yPercent: number
       widthPercent: number
       heightPercent: number
+      placedRotation?: number
     }
   ) => void
 }
@@ -95,14 +96,34 @@ export const SignModal: React.FC<SignModalProps> = ({
   const [selectedLibraryItem, setSelectedLibraryItem] = useState<string | null>(null)
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null)
 
-  // Load thumbnail for Step 1
-  const { dataUrl: pageDataUrl } = useThumbnail({
-    sourceId: page?.sourceId || '',
-    pageIndex: page?.sourcePageIndex || 0,
-    maxWidth: 1000,
-    lazy: false,
-    imagePreviewUrl: page?.imagePreviewUrl,
-  })
+  // Load preview for Step 1 respecting page rotation
+  const [pagePreviewUrl, setPagePreviewUrl] = useState<string | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(true)
+
+  useEffect(() => {
+    let isMounted = true
+    if (isOpen && page) {
+      setIsLoadingPreview(true)
+      globalCoordinator
+        .renderPageBlob(page, 'png', 1.5)
+        .then((blob) => {
+          if (isMounted) {
+            const url = URL.createObjectURL(blob)
+            setPagePreviewUrl(url)
+            setIsLoadingPreview(false)
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIsLoadingPreview(false)
+        })
+    } else {
+      setPagePreviewUrl(null)
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [isOpen, page?.id, page?.rotation])
 
   // Load saved signatures from localStorage
   useEffect(() => {
@@ -280,87 +301,87 @@ export const SignModal: React.FC<SignModalProps> = ({
     setSelectedLibraryItem(null)
   }
 
-  // Generate transparent PNG from Typed Text cropped tightly to text bounding box
-  const generateTypedDataUrl = useCallback((): string => {
-    const textToRender = typedText.trim() || 'Signature'
-    const tempCanvas = document.createElement('canvas')
-    const fontSize = 72
-    tempCanvas.width = 1600
-    tempCanvas.height = 400
-    const ctx = tempCanvas.getContext('2d')
-    if (!ctx) return ''
+/**
+ * Crops a canvas tightly around non-transparent pixel content with padding.
+ */
+function cropCanvasToContent(canvas: HTMLCanvasElement, padding = 4): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
 
-    ctx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
-    ctx.font = `${fontSize}px "${selectedFont}", cursive, sans-serif`
-    ctx.fillStyle = '#000000' // Black
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
+  const width = canvas.width
+  const height = canvas.height
+  const imgData = ctx.getImageData(0, 0, width, height)
+  const data = imgData.data
 
-    // Draw text with safety margin
-    const startX = 50
-    const startY = 250
-    ctx.fillText(textToRender, startX, startY)
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
 
-    // Analyze pixel bounding box to crop accurately
-    const imgData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    const { data, width, height } = imgData
-
-    let minX = width
-    let minY = height
-    let maxX = -1
-    let maxY = -1
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const alpha = data[(y * width + x) * 4 + 3]
-        if (alpha > 10) {
-          if (x < minX) minX = x
-          if (x > maxX) maxX = x
-          if (y < minY) minY = y
-          if (y > maxY) maxY = y
-        }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4
+      const alpha = data[idx + 3]
+      if (alpha > 10) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
       }
     }
+  }
 
-    if (maxX < minX || maxY < minY) {
-      return tempCanvas.toDataURL('image/png')
-    }
+  if (maxX < minX || maxY < minY) {
+    return canvas
+  }
 
-    const padding = 10
-    const cropX = Math.max(0, minX - padding)
-    const cropY = Math.max(0, minY - padding)
-    const cropWidth = Math.min(width - cropX, maxX - minX + 1 + padding * 2)
-    const cropHeight = Math.min(height - cropY, maxY - minY + 1 + padding * 2)
+  const cropX = Math.max(0, minX - padding)
+  const cropY = Math.max(0, minY - padding)
+  const cropW = Math.min(width - cropX, maxX - minX + 1 + padding * 2)
+  const cropH = Math.min(height - cropY, maxY - minY + 1 + padding * 2)
 
-    const croppedCanvas = document.createElement('canvas')
-    croppedCanvas.width = cropWidth
-    croppedCanvas.height = cropHeight
-    const croppedCtx = croppedCanvas.getContext('2d')
-    if (!croppedCtx) return tempCanvas.toDataURL('image/png')
+  const cropped = document.createElement('canvas')
+  cropped.width = cropW
+  cropped.height = cropH
+  const croppedCtx = cropped.getContext('2d')
+  if (!croppedCtx) return canvas
 
-    croppedCtx.drawImage(
-      tempCanvas,
-      cropX,
-      cropY,
-      cropWidth,
-      cropHeight,
-      0,
-      0,
-      cropWidth,
-      cropHeight
-    )
+  croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+  return cropped
+}
 
-    return croppedCanvas.toDataURL('image/png')
+  // Generate transparent PNG from Typed Text (Black, tightly cropped)
+  const generateTypedDataUrl = useCallback((): string => {
+    const text = typedText.trim()
+    if (!text) return ''
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 600
+    canvas.height = 200
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return ''
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.font = `64px "${selectedFont}", cursive, sans-serif`
+    ctx.fillStyle = '#000000' // Black
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
+  }, [typedText, selectedFont])
   }, [typedText, selectedFont])
 
-  // Generate transparent PNG from Draw Canvas (Black)
+  // Generate transparent PNG from Draw Canvas (Black, tightly cropped)
   const generateDrawDataUrl = (): string => {
     const canvas = drawCanvasRef.current
     if (!canvas) return ''
-    return canvas.toDataURL('image/png')
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
   }
 
-  // Generate transparent PNG from Symbol (Black)
+  // Generate transparent PNG from Symbol (Black, tightly cropped)
   const generateSymbolDataUrl = (symbolKey: string): string => {
     const canvas = document.createElement('canvas')
     canvas.width = 300
@@ -415,7 +436,8 @@ export const SignModal: React.FC<SignModalProps> = ({
       ctx.fillText(text, 150, 75)
     }
 
-    return canvas.toDataURL('image/png')
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
   }
 
   // Handle Image Upload with auto background transparency and bounded dimensions
@@ -458,7 +480,8 @@ export const SignModal: React.FC<SignModalProps> = ({
           }
         }
         ctx.putImageData(imgData, 0, 0)
-        const transparentDataUrl = canvas.toDataURL('image/png')
+        const croppedCanvas = cropCanvasToContent(canvas, 4)
+        const transparentDataUrl = croppedCanvas.toDataURL('image/png')
         setUploadedDataUrl(transparentDataUrl)
         setSelectedLibraryItem(null)
       }
@@ -493,7 +516,16 @@ export const SignModal: React.FC<SignModalProps> = ({
       setSaveSuccessMsg('Signature saved to library!')
       setTimeout(() => setSaveSuccessMsg(null), 2500)
     } catch (err) {
-      console.warn('Could not persist signature to localStorage:', err)
+      try {
+        const trimmed = updated.slice(0, 5)
+        localStorage.setItem(STORAGE_KEY_SIGNATURES, JSON.stringify(trimmed))
+        setSavedLibrary(trimmed)
+        setSaveSuccessMsg('Signature saved to library!')
+        setTimeout(() => setSaveSuccessMsg(null), 2500)
+      } catch {
+        setSaveSuccessMsg('Storage full. Please delete an older signature.')
+        setTimeout(() => setSaveSuccessMsg(null), 3000)
+      }
     }
   }
 
@@ -536,6 +568,7 @@ export const SignModal: React.FC<SignModalProps> = ({
       yPercent: placementBox.yPercent,
       widthPercent: placementBox.widthPercent,
       heightPercent: placementBox.heightPercent,
+      placedRotation: page.rotation || 0,
     })
 
     onClose()
@@ -599,13 +632,17 @@ export const SignModal: React.FC<SignModalProps> = ({
                 onMouseUp={handlePageMouseUp}
                 className="relative select-none cursor-crosshair bg-white shadow-2xl rounded border border-slate-300 max-h-[500px] w-auto inline-block"
               >
-                {pageDataUrl && (
+                {isLoadingPreview ? (
+                  <div className="w-[340px] h-[460px] flex flex-col items-center justify-center text-slate-400 space-y-2">
+                    <span className="text-xs font-medium">Loading high-resolution page...</span>
+                  </div>
+                ) : pagePreviewUrl ? (
                   <img
-                    src={pageDataUrl}
+                    src={pagePreviewUrl}
                     alt="Page preview"
                     className="max-h-[500px] w-auto max-w-full block pointer-events-none rounded"
                   />
-                )}
+                ) : null}
 
                 {/* Placement Box Overlay - Only shown when user draws it */}
                 {placementBox && placementBox.widthPercent > 0 && placementBox.heightPercent > 0 && (
@@ -700,7 +737,7 @@ export const SignModal: React.FC<SignModalProps> = ({
             </div>
 
             {/* TAB 1: DRAW */}
-            <div className={`space-y-3 ${activeTab === 'draw' ? 'block' : 'hidden'}`}>
+            <div style={{ display: activeTab === 'draw' ? 'block' : 'none' }} className="space-y-3">
               <div className="flex items-center justify-end space-x-3 text-xs text-slate-300">
                 <span>Thickness:</span>
                 <input
@@ -765,230 +802,224 @@ export const SignModal: React.FC<SignModalProps> = ({
             </div>
 
             {/* TAB 2: TYPE */}
-            {activeTab === 'type' && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-300">Type your signature</label>
-                  <input
-                    type="text"
-                    value={typedText}
-                    onFocus={() => {
-                      if (typedText === 'Signature Preview') {
-                        setTypedText('')
-                      }
-                    }}
-                    onChange={(e) => {
-                      setTypedText(e.target.value)
+            <div style={{ display: activeTab === 'type' ? 'block' : 'none' }} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-300">Type your signature</label>
+                <input
+                  type="text"
+                  value={typedText}
+                  onFocus={() => {
+                    if (typedText === 'Signature Preview') {
+                      setTypedText('')
+                    }
+                  }}
+                  onChange={(e) => {
+                    setTypedText(e.target.value)
+                    setSelectedLibraryItem(null)
+                  }}
+                  placeholder="Type your signature"
+                  className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+                />
+              </div>
+
+              {/* Font Selector Pills */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {fonts.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFont(f)
                       setSelectedLibraryItem(null)
                     }}
-                    placeholder="Type your signature"
-                    className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
-                  />
-                </div>
-
-                {/* Font Selector Pills */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {fonts.map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => {
-                        setSelectedFont(f)
-                        setSelectedLibraryItem(null)
-                      }}
-                      style={{ fontFamily: f }}
-                      className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
-                        selectedFont === f
-                          ? 'bg-[#0284c7] text-white font-bold ring-1 ring-sky-400'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Large White Preview Box */}
-                <div className="bg-white rounded-xl border border-slate-300 shadow-inner h-32 flex items-center justify-center p-4">
-                  <span
-                    style={{ fontFamily: `"${selectedFont}", cursive, sans-serif` }}
-                    className="text-3xl text-black select-none"
+                    style={{ fontFamily: f }}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                      selectedFont === f
+                        ? 'bg-[#0284c7] text-white font-bold ring-1 ring-sky-400'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                    }`}
                   >
-                    {typedText || 'Signature Preview'}
-                  </span>
-                </div>
-
-                <div className="flex justify-center pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    disabled={!typedText.trim()}
-                    className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save to Library</span>
+                    {f}
                   </button>
-                </div>
+                ))}
               </div>
-            )}
+
+              {/* Large White Preview Box */}
+              <div className="bg-white rounded-xl border border-slate-300 shadow-inner h-32 flex items-center justify-center p-4">
+                <span
+                  style={{ fontFamily: `"${selectedFont}", cursive, sans-serif` }}
+                  className="text-3xl text-black select-none"
+                >
+                  {typedText || 'Signature Preview'}
+                </span>
+              </div>
+
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleSaveToLibrary}
+                  disabled={!typedText.trim()}
+                  className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save to Library</span>
+                </button>
+              </div>
+            </div>
 
             {/* TAB 3: UPLOAD */}
-            {activeTab === 'upload' && (
-              <div className="space-y-3">
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/bmp,.png,.jpg,.jpeg,.bmp"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleImageUpload(e.target.files[0])
-                    }
-                  }}
-                />
+            <div style={{ display: activeTab === 'upload' ? 'block' : 'none' }} className="space-y-3">
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/bmp,.png,.jpg,.jpeg,.bmp"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleImageUpload(e.target.files[0])
+                  }
+                }}
+              />
 
-                <div
-                  onClick={() => uploadInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                      handleImageUpload(e.dataTransfer.files[0])
-                    }
-                  }}
-                  className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-sky-500 h-44 flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-colors shadow-inner"
-                >
-                  {uploadedDataUrl ? (
-                    <img
-                      src={uploadedDataUrl}
-                      alt="Uploaded signature"
-                      className="max-h-36 max-w-full object-contain"
-                    />
-                  ) : (
-                    <div className="space-y-2 text-slate-500">
-                      <ImagePlus className="w-8 h-8 mx-auto text-slate-400" />
-                      <div className="text-xs font-bold text-slate-700">
-                        Drag & drop signature image here or click to choose
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        Supports PNG, JPG, BMP. Auto background transparency.
-                      </div>
+              <div
+                onClick={() => uploadInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleImageUpload(e.dataTransfer.files[0])
+                  }
+                }}
+                className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-sky-500 h-44 flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-colors shadow-inner"
+              >
+                {uploadedDataUrl ? (
+                  <img
+                    src={uploadedDataUrl}
+                    alt="Uploaded signature"
+                    className="max-h-36 max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="space-y-2 text-slate-500">
+                    <ImagePlus className="w-8 h-8 mx-auto text-slate-400" />
+                    <div className="text-xs font-bold text-slate-700">
+                      Drag & drop signature image here or click to choose
                     </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-center space-x-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => uploadInputRef.current?.click()}
-                    className="px-4 py-1.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Choose Image File</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    disabled={!uploadedDataUrl}
-                    className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save to Library</span>
-                  </button>
-                </div>
+                    <div className="text-[11px] text-slate-400">
+                      Supports PNG, JPG, BMP. Auto background transparency.
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="flex items-center justify-center space-x-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => uploadInputRef.current?.click()}
+                  className="px-4 py-1.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Choose Image File</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveToLibrary}
+                  disabled={!uploadedDataUrl}
+                  className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save to Library</span>
+                </button>
+              </div>
+            </div>
 
             {/* TAB 4: SYMBOL (All Symbols Black) */}
-            {activeTab === 'symbol' && (
-              <div className="space-y-4">
-                <div className="text-xs font-semibold text-slate-300">Choose a symbol or stamp (Black):</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {/* Checkmark (Black) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSymbol('checkmark')
-                      setSelectedLibraryItem(null)
-                    }}
-                    className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
-                      selectedSymbol === 'checkmark'
-                        ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
-                        : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <Check className="w-8 h-8 text-slate-100 stroke-[3]" />
-                    <span className="text-xs font-semibold">Checkmark</span>
-                  </button>
+            <div style={{ display: activeTab === 'symbol' ? 'block' : 'none' }} className="space-y-4">
+              <div className="text-xs font-semibold text-slate-300">Choose a symbol or stamp (Black):</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Checkmark (Black) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSymbol('checkmark')
+                    setSelectedLibraryItem(null)
+                  }}
+                  className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                    selectedSymbol === 'checkmark'
+                      ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                      : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <Check className="w-8 h-8 text-slate-100 stroke-[3]" />
+                  <span className="text-xs font-semibold">Checkmark</span>
+                </button>
 
-                  {/* Cross (Black) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSymbol('cross')
-                      setSelectedLibraryItem(null)
-                    }}
-                    className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
-                      selectedSymbol === 'cross'
-                        ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
-                        : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <XSquare className="w-8 h-8 text-slate-100 stroke-[2]" />
-                    <span className="text-xs font-semibold">Cross</span>
-                  </button>
+                {/* Cross (Black) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSymbol('cross')
+                    setSelectedLibraryItem(null)
+                  }}
+                  className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                    selectedSymbol === 'cross'
+                      ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                      : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <XSquare className="w-8 h-8 text-slate-100 stroke-[2]" />
+                  <span className="text-xs font-semibold">Cross</span>
+                </button>
 
-                  {/* Star (Black) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSymbol('star')
-                      setSelectedLibraryItem(null)
-                    }}
-                    className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
-                      selectedSymbol === 'star'
-                        ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
-                        : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <Star className="w-8 h-8 text-slate-100 fill-slate-100" />
-                    <span className="text-xs font-semibold">Star</span>
-                  </button>
+                {/* Star (Black) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSymbol('star')
+                    setSelectedLibraryItem(null)
+                  }}
+                  className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                    selectedSymbol === 'star'
+                      ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                      : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <Star className="w-8 h-8 text-slate-100 fill-slate-100" />
+                  <span className="text-xs font-semibold">Star</span>
+                </button>
 
-                  {/* Approved (Black) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSymbol('stamp_APPROVED')
-                      setSelectedLibraryItem(null)
-                    }}
-                    className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
-                      selectedSymbol === 'stamp_APPROVED'
-                        ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
-                        : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="px-2 py-1 rounded border-2 border-slate-100 text-slate-100 font-extrabold text-xs tracking-wider">
-                      APPROVED
-                    </div>
-                    <span className="text-xs font-semibold">Stamp</span>
-                  </button>
-                </div>
-
-                <div className="flex justify-center pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    disabled={!selectedSymbol}
-                    className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save to Library</span>
-                  </button>
-                </div>
+                {/* Approved (Black) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSymbol('stamp_APPROVED')
+                    setSelectedLibraryItem(null)
+                  }}
+                  className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                    selectedSymbol === 'stamp_APPROVED'
+                      ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                      : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="px-2 py-1 rounded border-2 border-slate-100 text-slate-100 font-extrabold text-xs tracking-wider">
+                    APPROVED
+                  </div>
+                  <span className="text-xs font-semibold">Stamp</span>
+                </button>
               </div>
-            )}
+
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleSaveToLibrary}
+                  disabled={!selectedSymbol}
+                  className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save to Library</span>
+                </button>
+              </div>
+            </div>
 
             {/* Success toast notification when saved to library */}
             {saveSuccessMsg && (

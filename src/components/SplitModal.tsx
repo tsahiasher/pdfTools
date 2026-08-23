@@ -24,7 +24,7 @@ interface SplitModalProps {
   selectedPageIds: Set<string>
   isExporting: boolean
   onClose: () => void
-  onSplit: (parts: { name: string; pages: PageDescriptor[] }[]) => void
+  onSplit: (parts: { name: string; pages: PageDescriptor[] }[], asZip: boolean) => void
 }
 
 export const SplitModal: React.FC<SplitModalProps> = ({
@@ -36,6 +36,7 @@ export const SplitModal: React.FC<SplitModalProps> = ({
   onSplit,
 }) => {
   const [splitSelectedOnly, setSplitSelectedOnly] = useState<boolean>(false)
+  const [downloadAsZip, setDownloadAsZip] = useState<boolean>(true)
   const [partLabel, setPartLabel] = useState<string>('')
   const [rangeString, setRangeString] = useState<string>('')
   const [fromPage, setFromPage] = useState<number>(1)
@@ -270,7 +271,7 @@ export const SplitModal: React.FC<SplitModalProps> = ({
     }))
 
     onClose()
-    onSplit(exportPayload)
+    onSplit(exportPayload, downloadAsZip && parts.length > 1)
   }
 
   return (
@@ -533,6 +534,18 @@ export const SplitModal: React.FC<SplitModalProps> = ({
           </button>
 
           <div className="flex items-center space-x-3">
+            {parts.length > 1 && (
+              <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer select-none mr-2">
+                <input
+                  type="checkbox"
+                  checked={downloadAsZip}
+                  onChange={(e) => setDownloadAsZip(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded bg-slate-900 border-slate-600 text-sky-500 focus:ring-0 cursor-pointer accent-sky-500"
+                />
+                <span>Download as single .zip archive</span>
+              </label>
+            )}
+
             <button
               type="button"
               onClick={onClose}

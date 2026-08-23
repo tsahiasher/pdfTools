@@ -33,7 +33,7 @@ export const ExportImagesModal: React.FC<ExportImagesModalProps> = ({
 
   const effectivePageCount = target === 'selected' && selectedCount > 0 ? selectedCount : pageCount
   const ext = format === 'png' ? 'png' : 'jpg'
-  const cleanName = baseFilename.trim() || 'ExportedPage'
+  const cleanName = baseFilename.trim().replace(/\.(png|jpe?g|webp|pdf)$/i, '') || 'ExportedPage'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">

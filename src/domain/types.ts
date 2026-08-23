@@ -27,6 +27,7 @@ export interface SignatureOverlay {
   yPercent: number // 0 to 100
   widthPercent: number // 0 to 100
   heightPercent: number // 0 to 100
+  placedRotation?: number // Page rotation angle when signature was applied (0, 90, 180, 270)
   createdAt: number
 }
 

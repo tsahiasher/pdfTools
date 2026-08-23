@@ -226,6 +226,7 @@ export class PdfCoordinator {
 
   /**
    * Rotates an individual page by deltaDegrees (-90 for CCW, +90 for CW).
+   * Signatures are anchored in intrinsic coordinates and rotate smoothly with the page.
    */
   rotatePage(pageId: string, deltaDegrees: number): void {
     this.state.pages = this.state.pages.map((p) => {
@@ -268,10 +269,16 @@ export class PdfCoordinator {
       yPercent: number
       widthPercent: number
       heightPercent: number
+      placedRotation?: number
     }
   ): void {
     const page = this.state.pages.find((p) => p.id === pageId)
     if (!page) return
+
+    const placedRotation =
+      signature.placedRotation !== undefined
+        ? ((signature.placedRotation % 360) + 360) % 360
+        : page.rotation || 0
 
     const newSig: import('../domain/types').SignatureOverlay = {
       id: `sig_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -280,6 +287,7 @@ export class PdfCoordinator {
       yPercent: Math.max(0, Math.min(100, signature.yPercent)),
       widthPercent: Math.max(1, Math.min(100, signature.widthPercent)),
       heightPercent: Math.max(1, Math.min(100, signature.heightPercent)),
+      placedRotation,
       createdAt: Date.now(),
     }
 
@@ -516,9 +524,12 @@ export class PdfCoordinator {
   }
 
   /**
-   * Exports split PDF parts.
+   * Exports split PDF parts (individually or as a single ZIP archive).
    */
-  async exportSplitPdf(parts: { name: string; pages: PageDescriptor[] }[]): Promise<void> {
+  async exportSplitPdf(
+    parts: { name: string; pages: PageDescriptor[] }[],
+    asZip = false
+  ): Promise<void> {
     if (parts.length === 0) {
       throw new Error('No split parts to export.')
     }
@@ -527,7 +538,7 @@ export class PdfCoordinator {
     this.notify()
 
     try {
-      await this.exportManager.exportSplitPdfParts(parts, this.state.sources)
+      await this.exportManager.exportSplitPdfParts(parts, this.state.sources, asZip)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       this.state.errors.push({
@@ -545,6 +556,7 @@ export class PdfCoordinator {
 
   /**
    * Exports selected pages (or all pages) as pure PNG or JPG image files.
+   * Fully composites page rotations and applied digital signatures/stamps.
    * Downloads files directly to the browser with chosen base filename and format.
    */
   async exportImages(
@@ -566,20 +578,18 @@ export class PdfCoordinator {
 
     try {
       const ext = format === 'png' ? 'png' : 'jpg'
-      const cleanName = baseFilename.trim().replace(/\.[^/.]+$/, '') || 'ExportedPage'
+      const cleanName =
+        baseFilename.trim().replace(/\.(png|jpe?g|webp|pdf)$/i, '') || 'ExportedPage'
 
-      // Pre-render all blobs upfront in parallel
+      // Pre-render all high-resolution blobs (with rotation and signatures) upfront in parallel
       const blobs = await Promise.all(
         pagesToExport.map((page) =>
-          page.sourceType === 'image' && page.imagePreviewUrl && page.rotation === 0 && format === 'png'
-            ? fetch(page.imagePreviewUrl).then((r) => r.blob())
-            : this.thumbnailManager.renderHighResBlob(
-                page.sourceId,
-                page.sourcePageIndex,
-                page.rotation,
-                format,
-                2.0
-              )
+          this.thumbnailManager.renderHighResBlob(
+            page,
+            this.state.sources.get(page.sourceId),
+            format,
+            2.0
+          )
         )
       )
 
@@ -611,6 +621,22 @@ export class PdfCoordinator {
       this.state.isExporting = false
       this.notify()
     }
+  }
+
+  /**
+   * Helper to render a page at high resolution to a Blob for print or export.
+   */
+  async renderPageBlob(
+    page: PageDescriptor,
+    format: 'png' | 'jpeg' = 'png',
+    scale = 2.0
+  ): Promise<Blob> {
+    return this.thumbnailManager.renderHighResBlob(
+      page,
+      this.state.sources.get(page.sourceId),
+      format,
+      scale
+    )
   }
 
   async getThumbnail(sourceId: string, pageIndex: number, maxWidth = 300): Promise<string> {

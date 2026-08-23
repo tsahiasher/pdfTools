@@ -200,11 +200,12 @@ export class PdfSourceManager {
       const pdfJsData = originalBytes.slice()
       let pdfJsDoc: PDFDocumentProxy
       try {
+        const baseUrl = typeof window !== 'undefined' && window.location ? `${window.location.origin}/` : './'
         const loadingTask = pdfjsLib.getDocument({
           data: pdfJsData,
-          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+          cMapUrl: `${baseUrl}cmaps/`,
           cMapPacked: true,
-          standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/standard_fonts/',
+          standardFontDataUrl: `${baseUrl}standard_fonts/`,
         })
         pdfJsDoc = await loadingTask.promise
       } catch (err: unknown) {

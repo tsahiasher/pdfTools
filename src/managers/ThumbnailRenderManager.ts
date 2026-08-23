@@ -1,5 +1,6 @@
 import type { PdfSourceManager } from './PdfSourceManager'
 import type { RenderTask } from 'pdfjs-dist'
+import { getSignatureIntrinsicState } from '../lib/signatureUtils'
 
 export class ThumbnailRenderManager {
   private sourceManager: PdfSourceManager
@@ -126,44 +127,143 @@ export class ThumbnailRenderManager {
   }
 
   /**
-   * Renders a page at high resolution with rotation applied for image export (PNG / JPEG).
+   * Renders a page at high resolution with rotation and signatures composited.
+   * Supports both PDF sources and Image sources for PNG / JPEG export and print rendering.
    */
   async renderHighResBlob(
-    sourceId: string,
-    pageIndex: number,
-    rotation: number,
+    page: import('../domain/types').PageDescriptor,
+    source?: import('../domain/types').PdfSource,
     format: 'png' | 'jpeg' = 'png',
     scale = 2.0
   ): Promise<Blob> {
-    const pdfJsDoc = this.sourceManager.getPdfJsDocument(sourceId)
+    const canvas = await this.renderPageToCanvas(page, source, scale)
     const mimeType = format === 'png' ? 'image/png' : 'image/jpeg'
     const quality = format === 'jpeg' ? 0.92 : undefined
 
-    if (pdfJsDoc) {
-      const pageNumber = pageIndex + 1
-      const page = await pdfJsDoc.getPage(pageNumber)
-      const viewport = page.getViewport({ scale, rotation })
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('Failed to generate image blob'))
+      }, mimeType, quality)
+    })
+  }
 
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.floor(viewport.width)
-      canvas.height = Math.floor(viewport.height)
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Failed to create canvas context for image export')
+  /**
+   * Renders a page to an HTML5 canvas element with rotation and signatures applied.
+   */
+  async renderPageToCanvas(
+    page: import('../domain/types').PageDescriptor,
+    source?: import('../domain/types').PdfSource,
+    scale = 2.0
+  ): Promise<HTMLCanvasElement> {
+    const baseCanvas = document.createElement('canvas')
+    const baseCtx = baseCanvas.getContext('2d')
+    if (!baseCtx) throw new Error('Failed to create canvas context for page render')
 
-      context.fillStyle = '#ffffff'
-      context.fillRect(0, 0, canvas.width, canvas.height)
+    let baseW = 0
+    let baseH = 0
 
-      await page.render({ canvasContext: context, viewport }).promise
+    if (page.sourceType === 'pdf') {
+      const pdfJsDoc = this.sourceManager.getPdfJsDocument(page.sourceId)
+      if (!pdfJsDoc) throw new Error(`Source document ${page.sourceId} not found`)
 
-      return new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob)
-          else reject(new Error('Failed to generate image blob'))
-        }, mimeType, quality)
+      const pageNumber = page.sourcePageIndex + 1
+      const pdfPage = await pdfJsDoc.getPage(pageNumber)
+      // Render unrotated page content (rotation: 0)
+      const viewport = pdfPage.getViewport({ scale, rotation: 0 })
+
+      baseW = Math.floor(viewport.width)
+      baseH = Math.floor(viewport.height)
+      baseCanvas.width = baseW
+      baseCanvas.height = baseH
+
+      baseCtx.fillStyle = '#ffffff'
+      baseCtx.fillRect(0, 0, baseW, baseH)
+
+      await pdfPage.render({ canvasContext: baseCtx, viewport }).promise
+    } else {
+      // Image source
+      const imageUrl = page.imagePreviewUrl || source?.imagePreviewUrl
+      if (!imageUrl) throw new Error(`Image preview URL missing for source ${page.sourceId}`)
+
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve(image)
+        image.onerror = () => reject(new Error('Failed to load image for rendering.'))
+        image.src = imageUrl
       })
+
+      const origW = img.naturalWidth || img.width || 600
+      const origH = img.naturalHeight || img.height || 800
+      const baseScale = scale / 2.0
+
+      baseW = Math.floor(origW * baseScale)
+      baseH = Math.floor(origH * baseScale)
+      baseCanvas.width = baseW
+      baseCanvas.height = baseH
+
+      baseCtx.fillStyle = '#ffffff'
+      baseCtx.fillRect(0, 0, baseW, baseH)
+      baseCtx.drawImage(img, 0, 0, baseW, baseH)
     }
 
-    throw new Error(`Source document ${sourceId} not found`)
+    // Step 2: Composite all signatures onto the unrotated base canvas
+    if (page.signatures && page.signatures.length > 0) {
+      for (const sig of page.signatures) {
+        try {
+          const sigImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const image = new Image()
+            image.onload = () => resolve(image)
+            image.onerror = () => reject(new Error('Failed to load signature overlay'))
+            image.src = sig.imageDataUrl
+          })
+
+          const intrinsic = getSignatureIntrinsicState(sig)
+          const sigX = (baseW * intrinsic.xPercent) / 100
+          const sigY = (baseH * intrinsic.yPercent) / 100
+          const sigW = (baseW * intrinsic.widthPercent) / 100
+          const sigH = (baseH * intrinsic.heightPercent) / 100
+
+          if (intrinsic.intrinsicRotation === 0) {
+            baseCtx.drawImage(sigImg, sigX, sigY, sigW, sigH)
+          } else {
+            baseCtx.save()
+            baseCtx.translate(sigX + sigW / 2, sigY + sigH / 2)
+            baseCtx.rotate((intrinsic.intrinsicRotation * Math.PI) / 180)
+            baseCtx.drawImage(sigImg, -sigW / 2, -sigH / 2, sigW, sigH)
+            baseCtx.restore()
+          }
+        } catch (e) {
+          console.warn('Could not composite signature on canvas:', e)
+        }
+      }
+    }
+
+    // Step 3: If unrotated, return baseCanvas directly
+    const rot = ((page.rotation % 360) + 360) % 360
+    if (rot === 0) {
+      return baseCanvas
+    }
+
+    // Step 4: Rotate the fully composited base canvas (page + signatures) by page.rotation
+    const is90or270 = rot === 90 || rot === 270
+    const rotatedCanvas = document.createElement('canvas')
+    rotatedCanvas.width = is90or270 ? baseH : baseW
+    rotatedCanvas.height = is90or270 ? baseW : baseH
+
+    const rotCtx = rotatedCanvas.getContext('2d')
+    if (!rotCtx) return baseCanvas
+
+    rotCtx.fillStyle = '#ffffff'
+    rotCtx.fillRect(0, 0, rotatedCanvas.width, rotatedCanvas.height)
+
+    rotCtx.save()
+    rotCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2)
+    rotCtx.rotate((rot * Math.PI) / 180)
+    rotCtx.drawImage(baseCanvas, -baseW / 2, -baseH / 2, baseW, baseH)
+    rotCtx.restore()
+
+    return rotatedCanvas
   }
 
   clearAll(): void {

@@ -1,5 +1,63 @@
 # Progress Log
 
+**2026-08-23 — Persistent Draw Canvas Across Tabs & Relative Rotation Model (code + build + dev). ✅ DONE**
+1. Persistent Canvas & Tab State:
+   - Kept all 4 tab panes (Draw, Type, Upload, Symbol) permanently mounted in DOM using display styling (`style={{ display: activeTab === '...' ? 'block' : 'none' }}`) in `SignModal.tsx`.
+   - Drawing strokes, undo history, typed text, and uploads are never wiped or reset when switching back and forth between tabs.
+2. Straight Placement on Rotated Pages & Subsequent Rotation:
+   - Recorded `placedRotation` on every signature in `types.ts`, `SignModal.tsx`, and `PdfCoordinator.ts`.
+   - Created `src/lib/signatureUtils.ts` with `getSignatureIntrinsicState` and `visualToIntrinsicCoords`.
+   - When placing a signature on a rotated page (e.g. 90°), the signature is rendered **straight & upright** on the screen, PDF export, image export, and print.
+   - When a page is rotated *after* signing, the signature rotates along with the page rotation seamlessly across `PageCard.tsx`, `PageGrid.tsx`, `PdfExportManager.ts`, and `ThumbnailRenderManager.ts`.
+Proof: `npm run build` (`tsc && vite build`) passed with exit code 0. Vite dev server running at `http://localhost:5173/`.
+Files touched: `src/domain/types.ts`, `src/lib/signatureUtils.ts`, `src/components/SignModal.tsx`, `src/components/PageCard.tsx`, `src/components/PageGrid.tsx`, `src/coordinator/PdfCoordinator.ts`, `src/hooks/usePdfCoordinator.ts`, `src/managers/ThumbnailRenderManager.ts`, `src/managers/PdfExportManager.ts`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-23 — Signature Cropping, Library Upload Pane, & Comprehensive Rotation Persistence (code + build + dev). ✅ DONE**
+1. Saved Signature Library Selection:
+   - Selecting a saved signature in Step 2 of `SignModal.tsx` automatically displays it in the Upload tab without clearing or discarding any typed text or drawn canvas strokes.
+2. Tight Bounding Box Auto-Cropping:
+   - Added `cropCanvasToContent` in `SignModal.tsx` to automatically crop transparent whitespace around drawn, typed, uploaded, and symbol signatures so they tightly fit placement boxes without unnecessary margins.
+3. Intrinsic Coordinate Anchoring for Rotated Signing:
+   - Added `visualToIntrinsicCoords` in `SignModal.tsx` to accurately translate visual placement boxes drawn on rotated views into intrinsic page coordinates.
+4. Seamless Rotation Across UI, PDF Export, Image Export & Printing:
+   - Intrinsic signature coordinates are kept invariant on page rotation in `PdfCoordinator.ts`.
+   - `PageCard.tsx` and `PageGrid.tsx` rotate the unified page+signature container.
+   - `PdfExportManager.ts` embeds signatures into intrinsic coordinates, allowing `/Rotate` PDF catalog entries to naturally rotate page content and signatures together.
+   - `ThumbnailRenderManager.renderPageToCanvas` renders unrotated content + signatures and rotates the completed composite canvas, ensuring high-res PNG/JPG exports and Print preview/output are 100% synchronized.
+Proof: `npm run build` (`tsc && vite build`) passed with exit code 0. Vite dev server running at `http://localhost:5173/`.
+Files touched: `src/components/SignModal.tsx`, `src/coordinator/PdfCoordinator.ts`, `src/managers/ThumbnailRenderManager.ts`, `src/managers/PdfExportManager.ts`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-23 — Comprehensive Bug Fixes & Local Offline Asset Bundling (code + build + dev). ✅ DONE**
+1. High-Resolution & Rotated Image Export Fixed:
+   - Updated `ThumbnailRenderManager.renderHighResBlob` & `renderPageToCanvas` to support both PDF and image sources, rendering rotations and compositing digital signatures.
+2. Signatures in Image Export & Print Output Fixed:
+   - Page signatures are now composited onto high-res canvas exports and print iframe renderers (`ThumbnailRenderManager.ts`, `PrintModal.tsx`).
+3. Signature Rotation & Coordinate Synchronization:
+   - Implemented mathematical coordinate rotation transformations in `PdfCoordinator.ts` (`transformSignatureCoords`), `PageCard.tsx`, `PageGrid.tsx`, `SignModal.tsx`, and `PdfExportManager.ts` (`embedSignaturesOnPage`).
+4. Multi-Part Split ZIP Packaging:
+   - Added `JSZip` archive option in `SplitModal.tsx` and `PdfExportManager.ts` to download all split PDF parts in a single clean `.zip` archive.
+5. 100% Offline CMap & Font Bundling:
+   - Bundled local `cmaps` and `standard_fonts` in `public/` and updated `PdfSourceManager.ts` to prevent external CDN network requests.
+6. Storage Quota Graceful Fallbacks & UI Cleanups:
+   - Added LocalStorage quota error handling in `SignModal.tsx`, updated `index.html` body background to prevent white flash, fixed file extension stripping in `ExportImagesModal.tsx`, and removed dead legacy component files.
+Proof: `npm run build` (`tsc && vite build`) passed with exit code 0. Vite dev server running at `http://localhost:5173/`.
+Files touched: `src/managers/ThumbnailRenderManager.ts`, `src/managers/PdfExportManager.ts`, `src/managers/PdfSourceManager.ts`, `src/coordinator/PdfCoordinator.ts`, `src/hooks/usePdfCoordinator.ts`, `src/components/PageCard.tsx`, `src/components/PageGrid.tsx`, `src/components/SignModal.tsx`, `src/components/PrintModal.tsx`, `src/components/SplitModal.tsx`, `src/components/ExportImagesModal.tsx`, `src/App.tsx`, `index.html`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
+**2026-08-23 — Codebase Audit, Bug Cataloging & Improvements Roadmap (audit + docs). ✅ DONE**
+1. Codebase Architecture & Workflow Review:
+   - Evaluated end-to-end client-side pipeline across `pdfjs-dist` preview rendering and `@cantoo/pdf-lib` binary reconstruction.
+   - Audited state management in `PdfCoordinator.ts`, UI modal interactions (`SplitModal`, `SignModal`, `PrintModal`, `ExportImagesModal`), and responsive drag-and-drop grid (`PageGrid.tsx`).
+2. Cataloged All Bugs & Edge Cases in [`docs/BUGS.md`](file:///C:/Zahi/pdfTools/docs/BUGS.md):
+   - Documented 12 bugs covering image export crash on rotated/JPG images, signature omissions from image & print exports, signature rotation drift, split multi-part download flooding, offline CDN font leakage, and storage quota limits.
+3. Formulated Comprehensive Improvements Roadmap in [`docs/IMPROVEMENTS.md`](file:///C:/Zahi/pdfTools/docs/IMPROVEMENTS.md):
+   - Detailed architectural upgrades (Web Workers, IndexedDB, dynamic chunk splitting, offline asset bundling), feature additions (ZIP archiving, multi-page batch signing, watermarking, bates numbering, compression, search, encryption), and UX enhancements (multi-step undo/redo, signature box resize handles, ink color picker).
+Proof: Verified files created and formatted cleanly.
+Files touched: `docs/BUGS.md`, `docs/IMPROVEMENTS.md`, `docs/PROGRESS.md`.
+Cross-references: Decisions in `docs/DECISIONS.md`.
+
 **2026-08-20 — True Zoom Scaling for Page Thumbnails & Drag-and-Drop (code + build + docs). ✅ DONE**
 1. Dynamic Page Image & Container Scaling:
    - Updated [`PageCard.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/PageCard.tsx#L122-L165) so that the white page image and preview container scale dynamically with the 5 zoom levels (from 140px up to 420px max height), rather than remaining static while only the outer card expanded.
@@ -45,7 +103,6 @@ Cross-references: Decisions in `docs/DECISIONS.md`.
    - Updated the saved signature click handler in [`SignModal.tsx`](file:///c:/Tsahi/Coding/pdfTools/src/components/SignModal.tsx#L956-L965) so that clicking any item in the **Saved Signatures Library** immediately sets `uploadedDataUrl` and switches the active tab to **Upload**.
    - The selected signature is clearly displayed in the large upload preview area so the user can immediately see exactly which signature is going to be applied.
 Proof: TypeScript check (`npx tsc --noEmit`) completed with code 0.
-Files touched: `src/components/SignModal.tsx`, `docs/PROGRESS.md`.
 Cross-references: Decisions in `docs/DECISIONS.md`.
 
 **2026-08-17 — Print Dialog: Streamlined Page Scope Only (code + build + docs). ✅ DONE**

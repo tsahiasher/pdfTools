@@ -9,7 +9,6 @@ import {
   Minus,
   Square,
 } from 'lucide-react'
-import { useThumbnail } from '../hooks/useThumbnail'
 import { globalCoordinator } from '../coordinator/PdfCoordinator'
 import type { PageDescriptor } from '../domain/types'
 
@@ -24,13 +23,34 @@ const PrintPreviewViewer: React.FC<{
   page: PageDescriptor
   pageNumber: number
 }> = ({ page, pageNumber }) => {
-  const { dataUrl, isLoading, error } = useThumbnail({
-    sourceId: page.sourceId,
-    pageIndex: page.sourcePageIndex,
-    maxWidth: 800,
-    lazy: false,
-    imagePreviewUrl: page.imagePreviewUrl,
-  })
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null)
+  const [isLoading, setIsLoading] = React.useState<boolean>(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let isMounted = true
+    setIsLoading(true)
+    setError(null)
+    globalCoordinator
+      .renderPageBlob(page, 'png', 1.5)
+      .then((blob) => {
+        if (isMounted) {
+          const url = URL.createObjectURL(blob)
+          setPreviewUrl(url)
+          setIsLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to render preview')
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [page.id, page.rotation, page.signatures])
 
   if (isLoading) {
     return (
@@ -50,15 +70,12 @@ const PrintPreviewViewer: React.FC<{
     )
   }
 
-  if (dataUrl) {
+  if (previewUrl) {
     return (
       <div className="max-h-full flex items-center justify-center p-2">
         <img
-          src={dataUrl}
+          src={previewUrl}
           alt={`Preview Page ${pageNumber}`}
-          style={{
-            transform: `rotate(${page.rotation}deg)`,
-          }}
           className="max-h-[60vh] w-auto max-w-full object-contain rounded bg-white shadow-2xl border border-slate-300 transition-all duration-200"
         />
       </div>
@@ -200,18 +217,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             const pageDiv = frameDoc.createElement('div')
             pageDiv.className = 'page-container'
             const img = frameDoc.createElement('img')
-            img.style.transform = `rotate(${page.rotation}deg)`
 
-            if (page.sourceType === 'image' && page.imagePreviewUrl) {
-              img.src = page.imagePreviewUrl
-            } else {
-              const cached = await globalCoordinator.getThumbnail(
-                page.sourceId,
-                page.sourcePageIndex,
-                1200
-              )
-              img.src = cached
-            }
+            // Render high-res composite (rotation and signatures applied)
+            const blob = await globalCoordinator.renderPageBlob(page, 'png', 2.0)
+            img.src = URL.createObjectURL(blob)
 
             pageDiv.appendChild(img)
             container.appendChild(pageDiv)
@@ -225,8 +234,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
           setTimeout(() => {
             document.body.removeChild(printFrame)
-          }, 2000)
-        }, 300)
+          }, 3000)
+        }, 400)
       } catch {
         setIsPrinting(false)
       }

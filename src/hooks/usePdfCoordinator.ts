@@ -91,8 +91,8 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
   )
 
   const exportSplitPdf = useCallback(
-    (parts: { name: string; pages: PageDescriptor[] }[]) => {
-      return coordinator.exportSplitPdf(parts)
+    (parts: { name: string; pages: PageDescriptor[] }[], asZip = false) => {
+      return coordinator.exportSplitPdf(parts, asZip)
     },
     [coordinator]
   )
@@ -106,6 +106,7 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
         yPercent: number
         widthPercent: number
         heightPercent: number
+        placedRotation?: number
       }
     ) => {
       coordinator.addSignatureToPage(pageId, signature)

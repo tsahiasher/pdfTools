@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { PageCard } from './PageCard'
 import { useThumbnail } from '../hooks/useThumbnail'
+import { getSignatureIntrinsicState } from '../lib/signatureUtils'
 import type { PageDescriptor, PdfSource } from '../domain/types'
 
 interface PageGridProps {
@@ -207,33 +208,43 @@ const LiftedPageThumbnail: React.FC<{ page: PageDescriptor; zoomLevel: number }>
       : '420px'
 
   return (
-    <div className="relative inline-block" style={{ maxHeight: maxHeightStyle }}>
+    <div
+      className="relative inline-block"
+      style={{
+        transform: `rotate(${page.rotation}deg)`,
+        maxHeight: maxHeightStyle,
+      }}
+    >
       <img
         src={dataUrl}
         alt={`Page ${page.sourcePageIndex + 1}`}
         style={{
-          transform: `rotate(${page.rotation}deg)`,
           maxHeight: maxHeightStyle,
         }}
-        className="w-auto max-w-full object-contain rounded bg-white shadow-xl border border-slate-200 pointer-events-none"
+        className="w-auto max-w-full object-contain rounded bg-white shadow-xl border border-slate-200 pointer-events-none block"
       />
       {page.signatures &&
-        page.signatures.map((sig) => (
-          <img
-            key={sig.id}
-            src={sig.imageDataUrl}
-            alt="Signature overlay"
-            style={{
-              position: 'absolute',
-              left: `${sig.xPercent}%`,
-              top: `${sig.yPercent}%`,
-              width: `${sig.widthPercent}%`,
-              height: `${sig.heightPercent}%`,
-              objectFit: 'contain',
-              pointerEvents: 'none',
-            }}
-          />
-        ))}
+        page.signatures.map((sig) => {
+          const intrinsic = getSignatureIntrinsicState(sig)
+          return (
+            <img
+              key={sig.id}
+              src={sig.imageDataUrl}
+              alt="Signature overlay"
+              style={{
+                position: 'absolute',
+                left: `${intrinsic.xPercent}%`,
+                top: `${intrinsic.yPercent}%`,
+                width: `${intrinsic.widthPercent}%`,
+                height: `${intrinsic.heightPercent}%`,
+                transform: `rotate(${intrinsic.intrinsicRotation}deg)`,
+                transformOrigin: 'center center',
+                objectFit: 'contain',
+                pointerEvents: 'none',
+              }}
+            />
+          )
+        })}
     </div>
   )
 }

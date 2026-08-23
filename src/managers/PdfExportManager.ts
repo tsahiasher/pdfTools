@@ -8,6 +8,8 @@ import {
   PDFNull,
   PDFRef,
 } from '@cantoo/pdf-lib'
+import JSZip from 'jszip'
+import { getSignatureIntrinsicState } from '../lib/signatureUtils'
 import type { PdfSourceManager } from './PdfSourceManager'
 import type { PageDescriptor, PdfSource, BookmarkItem } from '../domain/types'
 
@@ -107,15 +109,18 @@ export class PdfExportManager {
   }
 
   /**
-   * Exports multiple separate split PDF parts.
+   * Exports multiple separate split PDF parts (individually or bundled in a ZIP archive).
    */
   async exportSplitPdfParts(
     parts: { name: string; pages: PageDescriptor[] }[],
-    sourcesMap: Map<string, PdfSource>
+    sourcesMap: Map<string, PdfSource>,
+    asZip = false
   ): Promise<void> {
     if (parts.length === 0) {
       throw new Error('No split parts to export.')
     }
+
+    const zip = asZip ? new JSZip() : null
 
     for (let pIdx = 0; pIdx < parts.length; pIdx++) {
       const part = parts[pIdx]
@@ -171,9 +176,18 @@ export class PdfExportManager {
       const partBytes = await partDoc.save()
       const filename = part.name.endsWith('.pdf') ? part.name : `${part.name}.pdf`
 
-      setTimeout(() => {
-        this.triggerDownload(partBytes, filename)
-      }, pIdx * 250)
+      if (zip) {
+        zip.file(filename, partBytes)
+      } else {
+        setTimeout(() => {
+          this.triggerDownload(partBytes, filename)
+        }, pIdx * 250)
+      }
+    }
+
+    if (zip) {
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      this.triggerDownloadBlob(zipBlob, 'split_documents.zip')
     }
   }
 
@@ -350,7 +364,9 @@ export class PdfExportManager {
   }
 
   /**
-   * Embeds transparent signature images onto a PDF page.
+   * Embeds transparent signature images onto a PDF page in intrinsic coordinates.
+   * Accurately accounts for placedRotation so signatures placed on rotated pages are straight,
+   * while post-signing page rotations rotate the signature along with the document.
    */
   private async embedSignaturesOnPage(
     doc: PDFDocument,
@@ -371,16 +387,34 @@ export class PdfExportManager {
         }
 
         const embeddedPng = await doc.embedPng(bytes)
-        const sigX = width * (sig.xPercent / 100)
-        const sigY = height * (1 - (sig.yPercent + sig.heightPercent) / 100)
-        const sigW = width * (sig.widthPercent / 100)
-        const sigH = height * (sig.heightPercent / 100)
+        const intrinsic = getSignatureIntrinsicState(sig)
+        const cx = (width * (intrinsic.xPercent + intrinsic.widthPercent / 2)) / 100
+        const cy = (height * (1 - (intrinsic.yPercent + intrinsic.heightPercent / 2) / 100))
+        const w = (width * intrinsic.widthPercent) / 100
+        const h = (height * intrinsic.heightPercent) / 100
+        const placedRot = sig.placedRotation ?? 0
+        const pdfDeg = ((placedRot % 360) + 360) % 360
+
+        let drawX = cx - w / 2
+        let drawY = cy - h / 2
+
+        if (pdfDeg === 90) {
+          drawX = cx + h / 2
+          drawY = cy - w / 2
+        } else if (pdfDeg === 180) {
+          drawX = cx + w / 2
+          drawY = cy + h / 2
+        } else if (pdfDeg === 270) {
+          drawX = cx - h / 2
+          drawY = cy + w / 2
+        }
 
         pdfPage.drawImage(embeddedPng, {
-          x: sigX,
-          y: sigY,
-          width: sigW,
-          height: sigH,
+          x: drawX,
+          y: drawY,
+          width: w,
+          height: h,
+          rotate: degrees(pdfDeg),
         })
       } catch (e) {
         console.error('Failed to embed signature onto page:', e)
@@ -389,14 +423,21 @@ export class PdfExportManager {
   }
 
   /**
-   * Triggers client-side browser download without any network interaction.
+   * Triggers client-side browser download of raw PDF bytes.
    */
   private triggerDownload(bytes: Uint8Array, filename: string): void {
     const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+    this.triggerDownloadBlob(blob, filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+  }
+
+  /**
+   * Triggers client-side browser download of any Blob.
+   */
+  private triggerDownloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`
+    link.download = filename
     document.body.appendChild(link)
     link.click()
 
