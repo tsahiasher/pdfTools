@@ -371,7 +371,6 @@ function cropCanvasToContent(canvas: HTMLCanvasElement, padding = 4): HTMLCanvas
     const cropped = cropCanvasToContent(canvas, 4)
     return cropped.toDataURL('image/png')
   }, [typedText, selectedFont])
-  }, [typedText, selectedFont])
 
   // Generate transparent PNG from Draw Canvas (Black, tightly cropped)
   const generateDrawDataUrl = (): string => {
