@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { TopNavbar } from './components/TopNavbar'
 import { SidebarSources } from './components/SidebarSources'
+import { MobileSourcesDrawer } from './components/MobileSourcesDrawer'
+import { MobileBottomBar } from './components/MobileBottomBar'
 import { GridSubHeader } from './components/GridSubHeader'
 import { PageGrid } from './components/PageGrid'
 import { Dropzone } from './components/Dropzone'
@@ -53,6 +55,7 @@ export const App: React.FC = () => {
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false)
   const [isExportImagesModalOpen, setIsExportImagesModalOpen] = useState<boolean>(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false)
+  const [isMobileSourcesOpen, setIsMobileSourcesOpen] = useState<boolean>(false)
   const [signingPageId, setSigningPageId] = useState<string | null>(null)
   const [pendingSourceMove, setPendingSourceMove] = useState<{
     sourceId: string
@@ -87,7 +90,8 @@ export const App: React.FC = () => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
 
       if (e.key === 'Escape') {
-        if (isClearModalOpen) setIsClearModalOpen(false)
+        if (isMobileSourcesOpen) setIsMobileSourcesOpen(false)
+        else if (isClearModalOpen) setIsClearModalOpen(false)
         else if (isSplitModalOpen) setIsSplitModalOpen(false)
         else if (isExportImagesModalOpen) setIsExportImagesModalOpen(false)
         else if (isPrintModalOpen) setIsPrintModalOpen(false)
@@ -125,6 +129,7 @@ export const App: React.FC = () => {
   }, [
     selectedPageIds,
     hasFiles,
+    isMobileSourcesOpen,
     isClearModalOpen,
     isSplitModalOpen,
     isExportImagesModalOpen,
@@ -182,6 +187,7 @@ export const App: React.FC = () => {
       <TopNavbar
         pageCount={pages.length}
         selectedCount={selectedPageIds.size}
+        sourceCount={sourceList.length}
         isExporting={isExporting}
         isProcessing={isProcessing}
         includeBookmarks={includeBookmarks}
@@ -194,11 +200,12 @@ export const App: React.FC = () => {
         onOpenPrintModal={() => setIsPrintModalOpen(true)}
         onSaveSelected={handleSaveSelected}
         onMergeSaveAll={handleMergeSaveAll}
+        onOpenMobileSources={() => setIsMobileSourcesOpen(true)}
       />
 
       {/* Main Workspace: Left Sidebar + Right Grid */}
       <div className="flex-1 flex flex-col lg:flex-row max-w-[1920px] w-full mx-auto overflow-hidden">
-        {/* Left Sidebar: PDF Source Files */}
+        {/* Desktop Left Sidebar: PDF Source Files */}
         {hasFiles && (
           <SidebarSources
             sources={sourceList}
@@ -207,8 +214,20 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* Mobile Left/Slide-over Drawer for Source Files */}
+        <MobileSourcesDrawer
+          isOpen={isMobileSourcesOpen}
+          onClose={() => setIsMobileSourcesOpen(false)}
+          sources={sourceList}
+          onRemoveSource={removeSource}
+          onMoveSource={handleMoveSource}
+          onAddFiles={addFiles}
+          isProcessing={isProcessing}
+          isExporting={isExporting}
+        />
+
         {/* Right Content Area */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto flex flex-col h-full">
+        <main className="flex-1 p-3 sm:p-6 overflow-y-auto flex flex-col h-full">
           {/* Error notifications */}
           <ErrorBanner errors={errors} onDismiss={dismissError} />
 
@@ -219,7 +238,7 @@ export const App: React.FC = () => {
             </div>
           ) : (
             /* Active Workflow Grid */
-            <div className="space-y-4 max-w-[1600px] mx-auto pb-8">
+            <div className="space-y-4 max-w-[1600px] mx-auto pb-20 lg:pb-8">
               {/* Subheader: Selection Summary, Action Buttons, Zoom slider */}
               <GridSubHeader
                 pageCount={pages.length}
@@ -257,6 +276,18 @@ export const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Floating Mobile Sticky Bottom Bar */}
+      <MobileBottomBar
+        pageCount={pages.length}
+        selectedCount={selectedPageIds.size}
+        zoomLevel={zoomLevel}
+        onZoomChange={setZoomLevel}
+        onSelectAll={selectAllPages}
+        onDeselect={clearSelection}
+        onRotateCW={() => rotateSelectedPages(90)}
+        onDeleteSelected={deleteSelectedPages}
+      />
 
       {/* Modal Dialogs */}
       <ClearWarningModal

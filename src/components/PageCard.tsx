@@ -7,6 +7,7 @@ import {
   Trash2,
   Check,
   PenTool,
+  GripVertical,
 } from 'lucide-react'
 import { useThumbnail } from '../hooks/useThumbnail'
 import { getSignatureIntrinsicState } from '../lib/signatureUtils'
@@ -70,10 +71,9 @@ export const PageCard: React.FC<PageCardProps> = ({
   return (
     <div
       ref={elementRef}
-      onPointerDown={onPointerDown}
       onClick={onSelect}
       style={{ borderColor: source?.color || '#0284c7' }}
-      className={`group relative flex flex-col bg-[#131d2a] rounded-xl transition-all duration-150 overflow-hidden cursor-grab active:cursor-grabbing select-none h-full ${
+      className={`group relative flex flex-col bg-[#131d2a] rounded-xl transition-all duration-150 overflow-hidden select-none h-full touch-pan-y ${
         isDragging
           ? 'opacity-0 pointer-events-none'
           : isSelected
@@ -81,9 +81,9 @@ export const PageCard: React.FC<PageCardProps> = ({
           : 'border border-slate-700/80 hover:border-slate-500 hover:shadow-md'
       }`}
     >
-      {/* Top Header: Checkbox | Orig. X | Filename */}
+      {/* Top Header: Checkbox | Orig. X | Filename | Drag Handle */}
       <div
-        className={`px-2.5 py-2 flex items-center space-x-2 min-w-0 transition-colors cursor-pointer ${
+        className={`px-2.5 py-1.5 flex items-center space-x-1.5 min-w-0 transition-colors cursor-pointer ${
           isSelected
             ? 'bg-[#0284c7] border-b border-[#0369a1] text-white'
             : 'bg-[#131d2a] border-b border-slate-800/80'
@@ -120,6 +120,18 @@ export const PageCard: React.FC<PageCardProps> = ({
         >
           {page.sourceName}
         </span>
+
+        {/* Dedicated Drag Handle Icon for Touch & Desktop Dragging */}
+        <div
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            onPointerDown?.(e)
+          }}
+          className="touch-none p-1 -mr-1 rounded hover:bg-black/20 cursor-grab active:cursor-grabbing text-slate-400 hover:text-white shrink-0"
+          title="Drag to reorder page"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
       </div>
 
       {/* Center White Paper Preview Area */}
@@ -215,10 +227,10 @@ export const PageCard: React.FC<PageCardProps> = ({
           </div>
         )}
 
-        {/* Hover Action Overlay */}
+        {/* Action Overlay */}
         <div
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center space-x-1 z-10 pointer-events-auto"
+          className="absolute bottom-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 flex items-center space-x-1 z-10 pointer-events-auto"
         >
           <button
             onClick={(e) => {

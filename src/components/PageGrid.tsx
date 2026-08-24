@@ -418,6 +418,12 @@ export const PageGrid: React.FC<PageGridProps> = ({
     const targetElement = e.currentTarget
     const rect = targetElement.getBoundingClientRect()
 
+    try {
+      targetElement.setPointerCapture(e.pointerId)
+    } catch {
+      // Fallback if not supported
+    }
+
     // If page is not yet selected, immediately select it and add to current selection set
     const isAlreadySelected = selectedPageIds.has(page.id)
     if (!isAlreadySelected) {
@@ -496,9 +502,18 @@ export const PageGrid: React.FC<PageGridProps> = ({
       }
     }
 
-    const onPointerUp = () => {
+    const onPointerUp = (upEvent?: PointerEvent) => {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
+
+      if (upEvent) {
+        try {
+          targetElement.releasePointerCapture(upEvent.pointerId)
+        } catch {
+          // Fallback if not supported
+        }
+      }
 
       disableGlobalGrabbingCursor()
       stopAutoScroll()
@@ -518,8 +533,9 @@ export const PageGrid: React.FC<PageGridProps> = ({
       setActiveDrag(null)
     }
 
-    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
     window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
   }
 
   const handleCardClick = (pageId: string, e: React.MouseEvent) => {
@@ -550,7 +566,7 @@ export const PageGrid: React.FC<PageGridProps> = ({
       case 2:
         return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3'
       case 3:
-        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+        return 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
       case 4:
         return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4'
       case 5:

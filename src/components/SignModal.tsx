@@ -153,9 +153,15 @@ export const SignModal: React.FC<SignModalProps> = ({
     }
   }, [isOpen, page?.id])
 
-  // Step 1: Interactive drag-to-draw placement box
-  const handlePageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Step 1: Interactive drag-to-draw placement box with Pointer Events for touch & mouse
+  const handlePagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!pageContainerRef.current) return
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Fallback
+    }
+
     const rect = pageContainerRef.current.getBoundingClientRect()
     const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
     const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
@@ -173,7 +179,7 @@ export const SignModal: React.FC<SignModalProps> = ({
     })
   }
 
-  const handlePageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handlePagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDrawingBox || !dragStartPos || !pageContainerRef.current) return
     const rect = pageContainerRef.current.getBoundingClientRect()
     const currentX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -192,15 +198,22 @@ export const SignModal: React.FC<SignModalProps> = ({
     })
   }
 
-  const handlePageMouseUp = () => {
+  const handlePagePointerUp = (e?: React.PointerEvent<HTMLDivElement>) => {
+    if (e) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // Fallback
+      }
+    }
     if (isDrawingBox) {
       setIsDrawingBox(false)
       setDragStartPos(null)
-      // Ensure minimum box size if user created a tiny drag
+      // Ensure minimum box size if user created a tiny drag or click
       setPlacementBox((prev) => {
         if (!prev) return null
         if (prev.widthPercent < 3 && prev.heightPercent < 3) {
-          // If clicked without dragging, create a standard signature box centered at click
+          // If tapped/clicked without dragging, create a standard signature box centered at tap
           return {
             xPercent: Math.max(0, Math.min(70, prev.xPercent - 15)),
             yPercent: Math.max(0, Math.min(85, prev.yPercent - 5)),
@@ -217,8 +230,8 @@ export const SignModal: React.FC<SignModalProps> = ({
     }
   }
 
-  // Step 2 Canvas Drawing Logic
-  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Step 2 Canvas Drawing Logic with Pointer Events for touch & mouse
+  const getCanvasCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = drawCanvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
@@ -239,9 +252,14 @@ export const SignModal: React.FC<SignModalProps> = ({
     setHistory((prev) => [...prev.slice(-15), currentData])
   }
 
-  const startPainting = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startPainting = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = drawCanvasRef.current
     if (!canvas) return
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Fallback
+    }
     saveCanvasState()
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -258,7 +276,7 @@ export const SignModal: React.FC<SignModalProps> = ({
     setHasDrawnContent(true)
   }
 
-  const paint = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const paint = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isPainting) return
     const canvas = drawCanvasRef.current
     if (!canvas) return
@@ -270,7 +288,14 @@ export const SignModal: React.FC<SignModalProps> = ({
     ctx.stroke()
   }
 
-  const stopPainting = () => {
+  const stopPainting = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // Fallback
+      }
+    }
     if (isPainting) {
       setIsPainting(false)
     }
@@ -626,10 +651,11 @@ function cropCanvasToContent(canvas: HTMLCanvasElement, padding = 4): HTMLCanvas
             <div className="flex items-center justify-center bg-[#070b12] rounded-xl p-4 border border-slate-800 overflow-hidden min-h-[460px] max-h-[560px]">
               <div
                 ref={pageContainerRef}
-                onMouseDown={handlePageMouseDown}
-                onMouseMove={handlePageMouseMove}
-                onMouseUp={handlePageMouseUp}
-                className="relative select-none cursor-crosshair bg-white shadow-2xl rounded border border-slate-300 max-h-[500px] w-auto inline-block"
+                onPointerDown={handlePagePointerDown}
+                onPointerMove={handlePagePointerMove}
+                onPointerUp={handlePagePointerUp}
+                onPointerCancel={handlePagePointerUp}
+                className="relative select-none cursor-crosshair bg-white shadow-2xl rounded border border-slate-300 max-h-[500px] w-auto inline-block touch-none"
               >
                 {isLoadingPreview ? (
                   <div className="w-[340px] h-[460px] flex flex-col items-center justify-center text-slate-400 space-y-2">
@@ -755,10 +781,11 @@ function cropCanvasToContent(canvas: HTMLCanvasElement, padding = 4): HTMLCanvas
                   ref={drawCanvasRef}
                   width={800}
                   height={220}
-                  onMouseDown={startPainting}
-                  onMouseMove={paint}
-                  onMouseUp={stopPainting}
-                  onMouseLeave={stopPainting}
+                  onPointerDown={startPainting}
+                  onPointerMove={paint}
+                  onPointerUp={stopPainting}
+                  onPointerCancel={stopPainting}
+                  onPointerLeave={stopPainting}
                   className="w-full h-full cursor-crosshair touch-none"
                 />
                 {!hasDrawnContent && (

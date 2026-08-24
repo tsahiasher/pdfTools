@@ -22,7 +22,7 @@ export const SidebarSources: React.FC<SidebarSourcesProps> = ({
   onMoveSource,
 }) => {
   return (
-    <aside className="w-full lg:w-72 xl:w-80 shrink-0 bg-[#0f172a] lg:border-r border-slate-800 p-4 flex flex-col gap-3 h-full overflow-hidden">
+    <aside className="hidden lg:flex w-full lg:w-72 xl:w-80 shrink-0 bg-[#0f172a] lg:border-r border-slate-800 p-4 flex-col gap-3 h-full overflow-hidden">
       <div className="flex items-center justify-between shrink-0">
         <h2 className="text-sm font-bold text-slate-200 tracking-wide">
           PDF Source Files

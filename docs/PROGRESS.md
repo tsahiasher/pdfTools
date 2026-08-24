@@ -1,5 +1,17 @@
 # Progress Log
 
+**2026-08-24 — SplitModal & Modal Responsive Footers Fix (code + build + deploy). ✅ DONE**
+1. Split PDF Modal Mobile Footer Fix:
+   - Updated `SplitModal.tsx` modal container to a flex-col layout (`max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden`).
+   - Moved range inputs and configured parts list into a scrollable middle body section (`flex-1 overflow-y-auto`).
+   - Anchored `Clear All Ranges`, `Download as single .zip archive`, `Cancel`, and `Split & Save All Parts` inside a sticky fixed bottom footer (`shrink-0 border-t bg-[#0b1324]`).
+2. Export Images Modal Mobile Responsiveness:
+   - Updated `ExportImagesModal.tsx` to follow the same responsive modal layout with a fixed bottom action footer.
+3. Deployment:
+   - Built production bundle and deployed live to Firebase Hosting (`https://safepdftools.web.app`).
+Proof: `npx tsc --noEmit`, `npm run build`, and `npx firebase deploy` passed cleanly with exit code 0.
+Files touched: `src/components/SplitModal.tsx`, `src/components/ExportImagesModal.tsx`, `docs/PROGRESS.md`.
+
 **2026-08-23 — Persistent Draw Canvas Across Tabs & Relative Rotation Model (code + build + dev). ✅ DONE**
 1. Persistent Canvas & Tab State:
    - Kept all 4 tab panes (Draw, Type, Upload, Symbol) permanently mounted in DOM using display styling (`style={{ display: activeTab === '...' ? 'block' : 'none' }}`) in `SignModal.tsx`.
