@@ -8,8 +8,10 @@ import {
   Type,
   ZoomIn,
   ZoomOut,
-  Sparkles,
+  Signature,
   Eraser,
+  PenLine,
+  Square,
 } from 'lucide-react'
 import type { PageDescriptor, FormFieldDescriptor, SignatureOverlay } from '../domain/types'
 import { globalCoordinator } from '../coordinator/PdfCoordinator'
@@ -92,7 +94,9 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
   const activeStrokePointsRef = useRef<{ x: number; y: number }[]>([])
 
   // Highlighter Gesture Engine
-  const highlightModeRef = useRef<'text' | 'freehand' | null>(null)
+  const [highlighterType, setHighlighterType] = useState<'freehand' | 'rectangle'>('freehand')
+  const highlightModeRef = useRef<'text' | 'freehand' | 'rectangle' | null>(null)
+  const highlightRectStartRef = useRef<{ x: number; y: number } | null>(null)
   const textSelectStartRef = useRef<{ xPercent: number; yPercent: number; lineIndex: number } | null>(null)
   const [activeSelectionBoxes, setActiveSelectionBoxes] = useState<SelectionBox[]>([])
 
@@ -466,41 +470,56 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
       ctx.fill()
       ctx.restore()
     } else if (activeTool === 'highlighter') {
-      // Check if pointer starts on a text line
-      const matchedLineIdx = textBlocks.findIndex((line) => {
-        const inX = coords.xPercent >= line.xPercent - 0.5 && coords.xPercent <= line.xPercent + line.widthPercent + 0.5
-        const inY = coords.yPercent >= line.yPercent - 0.2 && coords.yPercent <= line.yPercent + line.heightPercent + 0.2
-        return inX && inY
-      })
-
-      if (matchedLineIdx !== -1) {
-        // Lock into Text Highlighting Mode
-        highlightModeRef.current = 'text'
-        textSelectStartRef.current = {
-          xPercent: coords.xPercent,
-          yPercent: coords.yPercent,
-          lineIndex: matchedLineIdx,
-        }
-        const initialBoxes = calculateSelectionBoxes(textSelectStartRef.current, {
-          xPercent: coords.xPercent,
-          yPercent: coords.yPercent,
-        })
-        setActiveSelectionBoxes(initialBoxes)
-      } else {
-        // Lock into Freehand Highlighting Mode
-        highlightModeRef.current = 'freehand'
+      if (highlighterType === 'rectangle') {
+        // Lock into Rectangle Highlighting Mode
+        highlightModeRef.current = 'rectangle'
+        highlightRectStartRef.current = { x: coords.x, y: coords.y }
         textSelectStartRef.current = null
         setActiveSelectionBoxes([])
-
         const draftCanvas = draftCanvasRef.current
         if (draftCanvas) {
           const draftCtx = draftCanvas.getContext('2d')
           if (draftCtx) {
             draftCtx.clearRect(0, 0, draftCanvas.width, draftCanvas.height)
-            draftCtx.fillStyle = '#facc15'
-            draftCtx.beginPath()
-            draftCtx.arc(coords.x, coords.y, (highlighterWidth * 2) / 2, 0, Math.PI * 2)
-            draftCtx.fill()
+          }
+        }
+      } else {
+        // Check if pointer starts on a text line
+        const matchedLineIdx = textBlocks.findIndex((line) => {
+          const inX = coords.xPercent >= line.xPercent - 0.5 && coords.xPercent <= line.xPercent + line.widthPercent + 0.5
+          const inY = coords.yPercent >= line.yPercent - 0.2 && coords.yPercent <= line.yPercent + line.heightPercent + 0.2
+          return inX && inY
+        })
+
+        if (matchedLineIdx !== -1) {
+          // Lock into Text Highlighting Mode
+          highlightModeRef.current = 'text'
+          textSelectStartRef.current = {
+            xPercent: coords.xPercent,
+            yPercent: coords.yPercent,
+            lineIndex: matchedLineIdx,
+          }
+          const initialBoxes = calculateSelectionBoxes(textSelectStartRef.current, {
+            xPercent: coords.xPercent,
+            yPercent: coords.yPercent,
+          })
+          setActiveSelectionBoxes(initialBoxes)
+        } else {
+          // Lock into Freehand Highlighting Mode
+          highlightModeRef.current = 'freehand'
+          textSelectStartRef.current = null
+          setActiveSelectionBoxes([])
+
+          const draftCanvas = draftCanvasRef.current
+          if (draftCanvas) {
+            const draftCtx = draftCanvas.getContext('2d')
+            if (draftCtx) {
+              draftCtx.clearRect(0, 0, draftCanvas.width, draftCanvas.height)
+              draftCtx.fillStyle = '#facc15'
+              draftCtx.beginPath()
+              draftCtx.arc(coords.x, coords.y, (highlighterWidth * 2) / 2, 0, Math.PI * 2)
+              draftCtx.fill()
+            }
           }
         }
       }
@@ -552,7 +571,22 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
       ctx.restore()
       lastPointerPosRef.current = { x: coords.x, y: coords.y }
     } else if (activeTool === 'highlighter') {
-      if (highlightModeRef.current === 'text' && textSelectStartRef.current) {
+      if (highlightModeRef.current === 'rectangle' && highlightRectStartRef.current) {
+        const draftCanvas = draftCanvasRef.current
+        if (draftCanvas) {
+          const draftCtx = draftCanvas.getContext('2d')
+          if (draftCtx) {
+            const start = highlightRectStartRef.current
+            const rx = Math.min(start.x, coords.x)
+            const ry = Math.min(start.y, coords.y)
+            const rw = Math.abs(coords.x - start.x)
+            const rh = Math.abs(coords.y - start.y)
+            draftCtx.clearRect(0, 0, draftCanvas.width, draftCanvas.height)
+            draftCtx.fillStyle = '#facc15'
+            draftCtx.fillRect(rx, ry, rw, rh)
+          }
+        }
+      } else if (highlightModeRef.current === 'text' && textSelectStartRef.current) {
         // Update active blue selection boxes in real time
         const updatedBoxes = calculateSelectionBoxes(textSelectStartRef.current, {
           xPercent: coords.xPercent,
@@ -623,7 +657,32 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
     }
     if (isDrawing) {
       if (activeTool === 'highlighter') {
-        if (highlightModeRef.current === 'text' && activeSelectionBoxes.length > 0) {
+        if (highlightModeRef.current === 'rectangle' && highlightRectStartRef.current) {
+          const canvas = drawingCanvasRef.current
+          const draftCanvas = draftCanvasRef.current
+          if (canvas && draftCanvas) {
+            const ctx = canvas.getContext('2d')
+            const draftCtx = draftCanvas.getContext('2d')
+            if (ctx && draftCtx) {
+              const start = highlightRectStartRef.current
+              const rx = Math.min(start.x, lastPointerPosRef.current?.x ?? start.x)
+              const ry = Math.min(start.y, lastPointerPosRef.current?.y ?? start.y)
+              const rw = Math.abs((lastPointerPosRef.current?.x ?? start.x) - start.x)
+              const rh = Math.abs((lastPointerPosRef.current?.y ?? start.y) - start.y)
+              if (rw > 1 && rh > 1) {
+                ctx.save()
+                ctx.globalCompositeOperation = 'multiply'
+                ctx.fillStyle = 'rgba(250, 204, 21, 0.40)' // Transparent Yellow
+                ctx.fillRect(rx, ry, rw, rh)
+                ctx.restore()
+                setHasDrawings(true)
+                saveDrawingState()
+              }
+              draftCtx.clearRect(0, 0, draftCanvas.width, draftCanvas.height)
+            }
+          }
+          highlightRectStartRef.current = null
+        } else if (highlightModeRef.current === 'text' && activeSelectionBoxes.length > 0) {
           // Commit selected line boxes to permanent transparent yellow highlights
           const canvas = drawingCanvasRef.current
           if (canvas) {
@@ -672,6 +731,7 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
       setIsDrawing(false)
       lastPointerPosRef.current = null
       highlightModeRef.current = null
+      highlightRectStartRef.current = null
       textSelectStartRef.current = null
       setActiveSelectionBoxes([])
       activeStrokePointsRef.current = []
@@ -828,7 +888,9 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
   // Dynamic Cursor for Active Tool
   const getActiveCursor = () => {
     if (activeTool === 'pen') return PEN_CURSOR
-    if (activeTool === 'highlighter') return HIGHLIGHTER_CURSOR
+    if (activeTool === 'highlighter') {
+      return highlighterType === 'rectangle' ? 'crosshair' : HIGHLIGHTER_CURSOR
+    }
     if (activeTool === 'eraser') return 'none'
     if (activeTool === 'signature') return 'crosshair'
     return 'default'
@@ -900,7 +962,7 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
             }`}
             title="Signature"
           >
-            <Sparkles className="w-4 h-4" />
+            <Signature className="w-4 h-4" />
             <span className="hidden md:inline">Signature</span>
           </button>
 
@@ -996,19 +1058,47 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
             </div>
           )}
 
-          {/* Highlighter Controls: Width slider and Undo */}
+          {/* Highlighter Controls: Freehand / Rectangle Mode, Width slider and Undo */}
           {activeTool === 'highlighter' && (
             <div className="flex items-center space-x-3">
-              <span className="text-slate-400 font-medium">Highlighter Width:</span>
-              <input
-                type="range"
-                min={8}
-                max={40}
-                value={highlighterWidth}
-                onChange={(e) => setHighlighterWidth(parseInt(e.target.value, 10))}
-                className="w-24 sm:w-28 accent-yellow-500 cursor-pointer"
-              />
-              <span className="font-mono text-yellow-400 font-bold">{highlighterWidth}px</span>
+              <div className="flex items-center bg-[#070b14] border border-slate-800 rounded-lg p-0.5 space-x-1">
+                <button
+                  onClick={() => setHighlighterType('freehand')}
+                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                    highlighterType === 'freehand'
+                      ? 'bg-yellow-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  <span>Freehand</span>
+                </button>
+                <button
+                  onClick={() => setHighlighterType('rectangle')}
+                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                    highlighterType === 'rectangle'
+                      ? 'bg-yellow-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  <span>Rectangle</span>
+                </button>
+              </div>
+
+              {highlighterType === 'freehand' && (
+                <>
+                  <input
+                    type="range"
+                    min={8}
+                    max={40}
+                    value={highlighterWidth}
+                    onChange={(e) => setHighlighterWidth(parseInt(e.target.value, 10))}
+                    className="w-24 sm:w-28 accent-yellow-500 cursor-pointer"
+                  />
+                  <span className="font-mono text-yellow-400 font-bold">{highlighterWidth}px</span>
+                </>
+              )}
 
               <button
                 onClick={handleUndoDrawing}
@@ -1132,6 +1222,7 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
+                style={{ cursor: getActiveCursor() }}
                 className={`absolute inset-0 w-full h-full touch-none z-10 ${
                   activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'eraser'
                     ? 'pointer-events-auto'
