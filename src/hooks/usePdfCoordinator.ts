@@ -132,6 +132,21 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     return coordinator.hasCustomPageOrder()
   }, [coordinator])
 
+  const updatePageEditorData = useCallback(
+    (
+      pageId: string,
+      data: {
+        formValues?: Record<string, string | boolean>
+        customTextFields?: import('../domain/types').CustomTextField[]
+        drawingDataUrl?: string
+        signatures?: import('../domain/types').SignatureOverlay[]
+      }
+    ) => {
+      coordinator.updatePageEditorData(pageId, data)
+    },
+    [coordinator]
+  )
+
   return {
     ...state,
     coordinator,
@@ -156,6 +171,7 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     exportSplitPdf,
     addSignatureToPage,
     removeSignatureFromPage,
+    updatePageEditorData,
     setIncludeBookmarks,
     hasCustomPageOrder,
   }

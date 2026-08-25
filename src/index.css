@@ -16,3 +16,36 @@
     cursor: default !important;
   }
 }
+
+/* PDF.js Text Layer styling */
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  user-select: text;
+  -webkit-user-select: text;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.pdf-text-layer span,
+.pdf-text-layer br {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  transform-origin: 0% 0%;
+  pointer-events: auto;
+}
+
+.pdf-text-layer.disabled span,
+.pdf-text-layer.disabled br {
+  pointer-events: none;
+}
+
+.pdf-text-layer ::selection {
+  background: rgba(0, 120, 215, 0.85);
+  color: transparent;
+}

@@ -1,7 +1,7 @@
 import { PDFDocument } from '@cantoo/pdf-lib'
 import { pdfjsLib } from '../lib/pdfjs-worker'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import type { PdfSource, PageDescriptor, LoadFileResult } from '../domain/types'
+import type { PdfSource, PageDescriptor, LoadFileResult, FormFieldDescriptor } from '../domain/types'
 
 // Curated distinctive color palette for source tagging
 const SOURCE_COLORS = [
@@ -295,6 +295,227 @@ export class PdfSourceManager {
 
   getPdfJsDocument(sourceId: string): PDFDocumentProxy | undefined {
     return this.pdfJsDocs.get(sourceId)
+  }
+
+  /**
+   * Extracts interactive PDF AcroForm fields (text, checkbox, radio, choice) for a given page.
+   */
+  async extractPageFormFields(sourceId: string, pageIndex: number, rotation = 0): Promise<FormFieldDescriptor[]> {
+    const pdfJsDoc = this.pdfJsDocs.get(sourceId)
+    if (!pdfJsDoc) return []
+
+    try {
+      const page = await pdfJsDoc.getPage(pageIndex + 1)
+      const viewport = page.getViewport({ scale: 1.0, rotation: ((rotation % 360) + 360) % 360 })
+      const annotations = await page.getAnnotations()
+
+      const fields: FormFieldDescriptor[] = []
+
+      for (const annot of annotations) {
+        if (annot.subtype !== 'Widget') continue
+
+        const rawRect = annot.rect
+        if (!rawRect || rawRect.length < 4) continue
+
+        const [vx1, vy1, vx2, vy2] = viewport.convertToViewportRectangle(rawRect)
+        const left = Math.min(vx1, vx2)
+        const top = Math.min(vy1, vy2)
+        const w = Math.abs(vx2 - vx1)
+        const h = Math.abs(vy2 - vy1)
+
+        const xPercent = (left / viewport.width) * 100
+        const yPercent = (top / viewport.height) * 100
+        const widthPercent = (w / viewport.width) * 100
+        const heightPercent = (h / viewport.height) * 100
+
+        let fieldType: FormFieldDescriptor['type'] = 'text'
+        if (annot.fieldType === 'Btn') {
+          if (annot.radioButton) {
+            fieldType = 'radio'
+          } else if (annot.checkBox) {
+            fieldType = 'checkbox'
+          } else {
+            fieldType = 'checkbox'
+          }
+        } else if (annot.fieldType === 'Ch') {
+          fieldType = 'choice'
+        } else if (annot.fieldType === 'Sig') {
+          fieldType = 'signature'
+        }
+
+        const fieldName = annot.fieldName || annot.id || `field_${fields.length + 1}`
+
+        let initialValue: string | boolean = ''
+        if (fieldType === 'checkbox' || fieldType === 'radio') {
+          const rawVal = annot.fieldValue
+          if (typeof rawVal === 'boolean') {
+            initialValue = rawVal
+          } else if (typeof rawVal === 'string') {
+            const norm = rawVal.trim().toLowerCase()
+            initialValue = norm !== 'off' && norm !== '/off' && norm !== '' && norm !== 'false' && norm !== '0'
+          } else {
+            initialValue = false
+          }
+        } else {
+          initialValue = typeof annot.fieldValue === 'string' ? annot.fieldValue : (annot.fieldValue != null ? String(annot.fieldValue) : '')
+        }
+
+        fields.push({
+          id: annot.id || `fld_${pageIndex}_${fields.length}`,
+          name: fieldName,
+          type: fieldType,
+          rect: [rawRect[0], rawRect[1], rawRect[2], rawRect[3]],
+          xPercent,
+          yPercent,
+          widthPercent,
+          heightPercent,
+          value: initialValue,
+          options: annot.options ? annot.options.map((o: any) => (typeof o === 'string' ? o : o?.displayValue || o?.exportValue || '')) : undefined,
+          readOnly: !!annot.readOnly,
+          multiline:
+            !!annot.multiLine ||
+            (typeof annot.fieldFlags === 'number' && (annot.fieldFlags & 4096) !== 0) ||
+            heightPercent >= 2.5 ||
+            (typeof initialValue === 'string' && initialValue.includes('\n')),
+          fontSize: annot.fontSize,
+        })
+      }
+
+      return fields
+    } catch (err) {
+      console.warn('Error extracting form fields:', err)
+      return []
+    }
+  }
+
+  /**
+   * Extracts text items bounding boxes in percentage coordinates for smart text highlighting.
+   */
+  async extractPageTextBlocks(sourceId: string, pageIndex: number, rotation = 0): Promise<{
+    xPercent: number
+    yPercent: number
+    widthPercent: number
+    heightPercent: number
+    str: string
+  }[]> {
+    const pdfJsDoc = this.pdfJsDocs.get(sourceId)
+    if (!pdfJsDoc) return []
+
+    try {
+      const page = await pdfJsDoc.getPage(pageIndex + 1)
+      const viewport = page.getViewport({ scale: 1.0, rotation: ((rotation % 360) + 360) % 360 })
+      const textContent = await page.getTextContent()
+      const rawBlocks: {
+        left: number
+        top: number
+        right: number
+        bottom: number
+        str: string
+      }[] = []
+
+      for (const item of textContent.items as any[]) {
+        if (!item.str || !item.transform) continue
+        const tx = item.transform[4]
+        const ty = item.transform[5]
+        const w = item.width || 0
+        const fontSize = Math.hypot(item.transform[0], item.transform[1]) || item.height || 12
+
+        // Tight PDF text bounding box with ascent and descent
+        const rawRect = [tx, ty - fontSize * 0.15, tx + w, ty + fontSize * 0.85]
+        const [vx1, vy1, vx2, vy2] = viewport.convertToViewportRectangle(rawRect)
+        const left = Math.min(vx1, vx2)
+        const top = Math.min(vy1, vy2)
+        const right = Math.max(vx1, vx2)
+        const bottom = Math.max(vy1, vy2)
+
+        if (right > left && bottom > top) {
+          rawBlocks.push({ left, top, right, bottom, str: item.str })
+        }
+      }
+
+      // Sort by vertical position (top-to-bottom), then horizontal (left-to-right)
+      rawBlocks.sort((a, b) => (Math.abs(a.top - b.top) > 4 ? a.top - b.top : a.left - b.left))
+
+      // Merge contiguous text fragments on the same line
+      const mergedLines: {
+        xPercent: number
+        yPercent: number
+        widthPercent: number
+        heightPercent: number
+        str: string
+      }[] = []
+
+      for (const block of rawBlocks) {
+        const last = mergedLines[mergedLines.length - 1]
+        if (last) {
+          const lastTopPx = (last.yPercent * viewport.height) / 100
+          const lastBottomPx = ((last.yPercent + last.heightPercent) * viewport.height) / 100
+          const lastRightPx = ((last.xPercent + last.widthPercent) * viewport.width) / 100
+          const lastLeftPx = (last.xPercent * viewport.width) / 100
+
+          const sameLine = Math.abs(block.top - lastTopPx) < 5 && Math.abs(block.bottom - lastBottomPx) < 5
+          const isNearby = block.left >= lastLeftPx - 2 && block.left <= lastRightPx + 24
+
+          if (sameLine && isNearby) {
+            const newRight = Math.max(lastRightPx, block.right)
+            const newBottom = Math.max(lastBottomPx, block.bottom)
+            const newTop = Math.min(lastTopPx, block.top)
+
+            last.xPercent = (lastLeftPx / viewport.width) * 100
+            last.yPercent = (newTop / viewport.height) * 100
+            last.widthPercent = ((newRight - lastLeftPx) / viewport.width) * 100
+            last.heightPercent = ((newBottom - newTop) / viewport.height) * 100
+            last.str += ' ' + block.str
+            continue
+          }
+        }
+
+        mergedLines.push({
+          xPercent: (block.left / viewport.width) * 100,
+          yPercent: (block.top / viewport.height) * 100,
+          widthPercent: ((block.right - block.left) / viewport.width) * 100,
+          heightPercent: ((block.bottom - block.top) / viewport.height) * 100,
+          str: block.str,
+        })
+      }
+
+      return mergedLines
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Renders the native interactive PDF text layer into a container element.
+   */
+  async renderPageTextLayer(
+    sourceId: string,
+    pageIndex: number,
+    container: HTMLElement,
+    targetWidth: number,
+    rotation = 0
+  ): Promise<void> {
+    const pdfJsDoc = this.pdfJsDocs.get(sourceId)
+    if (!pdfJsDoc) return
+
+    try {
+      const page = await pdfJsDoc.getPage(pageIndex + 1)
+      const rot = ((rotation % 360) + 360) % 360
+      const unscaled = page.getViewport({ scale: 1.0, rotation: rot })
+      const scale = targetWidth > 0 ? targetWidth / unscaled.width : 1.0
+      const viewport = page.getViewport({ scale, rotation: rot })
+      const textContent = await page.getTextContent()
+
+      container.innerHTML = ''
+      const textLayer = new pdfjsLib.TextLayer({
+        textContentSource: textContent,
+        container,
+        viewport,
+      })
+      await textLayer.render()
+    } catch (err) {
+      console.warn('Failed to render text layer:', err)
+    }
   }
 
   /**

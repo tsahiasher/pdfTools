@@ -311,6 +311,60 @@ export class PdfCoordinator {
   }
 
   /**
+   * Updates all editor annotations (form values, custom text, drawings, and signatures) on a page.
+   */
+  updatePageEditorData(
+    pageId: string,
+    data: {
+      formValues?: Record<string, string | boolean>
+      customTextFields?: import('../domain/types').CustomTextField[]
+      drawingDataUrl?: string
+      signatures?: import('../domain/types').SignatureOverlay[]
+    }
+  ): void {
+    const page = this.state.pages.find((p) => p.id === pageId)
+    if (!page) return
+
+    this.state.pages = this.state.pages.map((p) => {
+      if (p.id === pageId) {
+        return {
+          ...p,
+          formValues: data.formValues !== undefined ? { ...data.formValues } : p.formValues,
+          customTextFields: data.customTextFields !== undefined ? [...data.customTextFields] : p.customTextFields,
+          drawingDataUrl: data.drawingDataUrl !== undefined ? data.drawingDataUrl : p.drawingDataUrl,
+          signatures: data.signatures !== undefined ? [...data.signatures] : p.signatures,
+        }
+      }
+      return p
+    })
+
+    // Invalidate cached thumbnail so page card reflects the new drawing and form edits
+    this.thumbnailManager.clearCacheForSource(page.sourceId)
+    this.notify()
+  }
+
+  /**
+   * Extracts form fields for a given source page.
+   */
+  async extractPageFormFields(sourceId: string, pageIndex: number, rotation = 0): Promise<import('../domain/types').FormFieldDescriptor[]> {
+    return this.sourceManager.extractPageFormFields(sourceId, pageIndex, rotation)
+  }
+
+  /**
+   * Extracts text items bounding boxes in percentage coordinates for smart text highlighting.
+   */
+  async extractPageTextBlocks(sourceId: string, pageIndex: number, rotation = 0) {
+    return this.sourceManager.extractPageTextBlocks(sourceId, pageIndex, rotation)
+  }
+
+  /**
+   * Renders the native interactive PDF text layer into a container element.
+   */
+  async renderPageTextLayer(sourceId: string, pageIndex: number, container: HTMLElement, targetWidth: number, rotation = 0) {
+    return this.sourceManager.renderPageTextLayer(sourceId, pageIndex, container, targetWidth, rotation)
+  }
+
+  /**
    * Deletes an individual page.
    */
   deletePage(pageId: string): void {
@@ -639,8 +693,29 @@ export class PdfCoordinator {
     )
   }
 
-  async getThumbnail(sourceId: string, pageIndex: number, maxWidth = 300): Promise<string> {
-    return this.thumbnailManager.renderThumbnail(sourceId, pageIndex, maxWidth)
+  /**
+   * Helper to render the raw un-annotated page for the full-screen editor.
+   */
+  async renderRawPageBlob(page: PageDescriptor, scale = 2.0): Promise<Blob> {
+    return this.thumbnailManager.renderRawPageBlob(
+      page,
+      this.state.sources.get(page.sourceId),
+      scale
+    )
+  }
+
+  async getThumbnail(
+    sourceId: string,
+    pageIndex: number,
+    maxWidth = 300,
+    pageDesc?: PageDescriptor
+  ): Promise<string> {
+    const desc =
+      pageDesc ||
+      this.state.pages.find(
+        (p) => p.sourceId === sourceId && p.sourcePageIndex === pageIndex
+      )
+    return this.thumbnailManager.renderThumbnail(sourceId, pageIndex, maxWidth, desc)
   }
 
   getCachedThumbnail(sourceId: string, pageIndex: number): string | undefined {

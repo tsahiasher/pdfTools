@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { globalCoordinator } from '../coordinator/PdfCoordinator'
+import type { PageDescriptor } from '../domain/types'
 
 interface UseThumbnailOptions {
   sourceId: string
@@ -7,6 +8,8 @@ interface UseThumbnailOptions {
   maxWidth?: number
   lazy?: boolean
   imagePreviewUrl?: string
+  page?: PageDescriptor
+  revision?: string | number
 }
 
 export function useThumbnail({
@@ -15,6 +18,8 @@ export function useThumbnail({
   maxWidth = 300,
   lazy = true,
   imagePreviewUrl,
+  page,
+  revision,
 }: UseThumbnailOptions) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -36,13 +41,15 @@ export function useThumbnail({
       return
     }
 
-    // Check cache first
-    const cached = globalCoordinator.getCachedThumbnail(sourceId, pageIndex)
-    if (cached) {
-      setDataUrl(cached)
-      setIsLoading(false)
-      setError(null)
-      return
+    // Check cache first (only if no revision force)
+    if (!revision) {
+      const cached = globalCoordinator.getCachedThumbnail(sourceId, pageIndex)
+      if (cached) {
+        setDataUrl(cached)
+        setIsLoading(false)
+        setError(null)
+        return
+      }
     }
 
     let isMounted = true
@@ -51,7 +58,7 @@ export function useThumbnail({
 
     const doRender = async () => {
       try {
-        const url = await globalCoordinator.getThumbnail(sourceId, pageIndex, maxWidth)
+        const url = await globalCoordinator.getThumbnail(sourceId, pageIndex, maxWidth, page)
         if (isMounted) {
           setDataUrl(url)
           setIsLoading(false)
@@ -105,7 +112,7 @@ export function useThumbnail({
       observer.disconnect()
       globalCoordinator.cancelThumbnail(sourceId, pageIndex)
     }
-  }, [sourceId, pageIndex, maxWidth, lazy, imagePreviewUrl])
+  }, [sourceId, pageIndex, maxWidth, lazy, imagePreviewUrl, revision, page?.drawingDataUrl, page?.formValues, page?.signatures?.length, page?.rotation])
 
   return {
     dataUrl,

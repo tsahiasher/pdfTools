@@ -66,6 +66,8 @@ export const PageCard: React.FC<PageCardProps> = ({
     maxWidth: thumbnailMaxWidth,
     lazy: true,
     imagePreviewUrl: page.imagePreviewUrl,
+    page,
+    revision: `${page.drawingDataUrl ? 1 : 0}_${page.formValues ? JSON.stringify(page.formValues) : ''}_${page.signatures?.length || 0}_${page.rotation}`,
   })
 
   return (
@@ -200,6 +202,15 @@ export const PageCard: React.FC<PageCardProps> = ({
                 loading="lazy"
               />
 
+              {/* Render Freehand Drawing / Highlighter Overlay */}
+              {page.drawingDataUrl && (
+                <img
+                  src={page.drawingDataUrl}
+                  alt="Drawing overlay"
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                />
+              )}
+
               {/* Render Signature Overlays directly on page thumbnail */}
               {page.signatures &&
                 page.signatures.map((sig) => {
@@ -262,8 +273,8 @@ export const PageCard: React.FC<PageCardProps> = ({
               onSign(e)
             }}
             className="p-1.5 rounded-lg bg-[#0284c7]/80 hover:bg-[#0284c7] backdrop-blur-sm text-white border border-sky-400/30 shadow transition-all hover:scale-105 active:scale-95"
-            title="Sign / Edit Page"
-            aria-label="Sign / Edit Page"
+            title="Edit & Sign Page (Full Screen)"
+            aria-label="Edit & Sign Page (Full Screen)"
           >
             <PenTool className="w-3.5 h-3.5" />
           </button>
@@ -288,13 +299,18 @@ export const PageCard: React.FC<PageCardProps> = ({
           P. {sequenceIndex}
         </span>
         <div className="flex items-center space-x-1.5">
+          {(page.drawingDataUrl || (page.customTextFields && page.customTextFields.length > 0) || (page.formValues && Object.keys(page.formValues).length > 0)) && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-medium">
+              Edited
+            </span>
+          )}
           {page.signatures && page.signatures.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-medium">
               Signed ({page.signatures.length})
             </span>
           )}
           {page.rotation !== 0 && (
-            <span className="text-[10px] px-1 rounded bg-sky-950 text-sky-400 border border-sky-800 font-medium">
+            <span className="text-[10px] px-1 rounded bg-slate-800 text-slate-300 border border-slate-700 font-medium">
               {page.rotation}°
             </span>
           )}

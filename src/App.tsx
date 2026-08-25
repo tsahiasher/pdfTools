@@ -11,7 +11,7 @@ import { ClearWarningModal } from './components/ClearWarningModal'
 import { ExportImagesModal } from './components/ExportImagesModal'
 import { PrintModal } from './components/PrintModal'
 import { SplitModal } from './components/SplitModal'
-import { SignModal } from './components/SignModal'
+import { PageEditorModal } from './components/PageEditorModal'
 import { DragOverlay } from './components/DragOverlay'
 import { ReorderFilesWarningModal } from './components/ReorderFilesWarningModal'
 import { usePdfCoordinator } from './hooks/usePdfCoordinator'
@@ -45,7 +45,7 @@ export const App: React.FC = () => {
     exportSelectedPdf,
     exportImages,
     exportSplitPdf,
-    addSignatureToPage,
+    updatePageEditorData,
     setIncludeBookmarks,
     hasCustomPageOrder,
   } = usePdfCoordinator()
@@ -321,11 +321,11 @@ export const App: React.FC = () => {
         onClose={() => setIsPrintModalOpen(false)}
       />
 
-      <SignModal
+      <PageEditorModal
         isOpen={!!signingPageId}
         page={activeSigningPage}
         onClose={() => setSigningPageId(null)}
-        onApplySignature={addSignatureToPage}
+        onSave={updatePageEditorData}
       />
 
       <ReorderFilesWarningModal

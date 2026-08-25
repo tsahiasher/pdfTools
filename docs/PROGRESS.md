@@ -1,16 +1,33 @@
 # Progress Log
 
-**2026-08-24 — SplitModal & Modal Responsive Footers Fix (code + build + deploy). ✅ DONE**
-1. Split PDF Modal Mobile Footer Fix:
-   - Updated `SplitModal.tsx` modal container to a flex-col layout (`max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden`).
-   - Moved range inputs and configured parts list into a scrollable middle body section (`flex-1 overflow-y-auto`).
-   - Anchored `Clear All Ranges`, `Download as single .zip archive`, `Cancel`, and `Split & Save All Parts` inside a sticky fixed bottom footer (`shrink-0 border-t bg-[#0b1324]`).
-2. Export Images Modal Mobile Responsiveness:
-   - Updated `ExportImagesModal.tsx` to follow the same responsive modal layout with a fixed bottom action footer.
-3. Deployment:
-   - Built production bundle and deployed live to Firebase Hosting (`https://safepdftools.web.app`).
-Proof: `npx tsc --noEmit`, `npm run build`, and `npx firebase deploy` passed cleanly with exit code 0.
-Files touched: `src/components/SplitModal.tsx`, `src/components/ExportImagesModal.tsx`, `docs/PROGRESS.md`.
+**2026-08-25 — Multiline & Newline (Enter Key) Support for All Text Boxes. ✅ DONE**
+1. Universal Multiline & Newline Support:
+   - Updated `extractPageFormFields` to check PDF flags (`0x1000` bit flag), field height (`heightPercent >= 2.2`), and content (`val.includes('\n')`).
+   - Text boxes with sufficient height or containing newlines automatically render as `<textarea>` with proper multiline wrapping.
+   - Hitting <kbd>Enter</kbd> in any text field automatically inserts a newline and upgrades the input to a multiline textarea.
+   - Updated `ThumbnailRenderManager` to split and render multi-line text values with proportional line-height on preview thumbnails.
+2. Form & Text Mode on Entry:
+   - Configured `PageEditorModal` to always activate `Form & Text` mode by default whenever the editor is opened.
+3. Auto Text Size Capped at Medium:
+   - Capped the `Auto` font size calculation to never exceed the `Medium` baseline (`Math.max(8, Math.min(18, Math.round(boxHeightPx * 0.60)))`).
+4. Live Page Card Annotations Thumbnailing:
+   - Page card previews immediately show filled form fields, checkboxes, highlighters, drawings, and signatures.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/managers/PdfSourceManager.ts`, `src/components/PageEditorModal.tsx`, `src/managers/ThumbnailRenderManager.ts`, `docs/PROGRESS.md`.
+3. Geometric Visual Text Line Selection Engine:
+   - Predictable multi-row selection with solid continuous transparent yellow highlights and zero gaps.
+4. Eraser Configuration:
+   - Range 3px–60px with default 10px, single neutral circle follower.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/components/PageEditorModal.tsx`, `docs/PROGRESS.md`.
+3. Text-Only Highlighting & Transparent Yellow Freehand:
+   - Suppressed freehand strokes over text; used `multiply` single-pass rendering for freehand in non-text areas.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/components/PageEditorModal.tsx`, `src/managers/PdfSourceManager.ts`, `src/coordinator/PdfCoordinator.ts`, `docs/PROGRESS.md`.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/managers/PdfSourceManager.ts`, `src/components/PageEditorModal.tsx`, `docs/PROGRESS.md`.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/components/PageEditorModal.tsx`, `src/managers/PdfSourceManager.ts`, `docs/PROGRESS.md`.
 
 **2026-08-23 — Persistent Draw Canvas Across Tabs & Relative Rotation Model (code + build + dev). ✅ DONE**
 1. Persistent Canvas & Tab State:

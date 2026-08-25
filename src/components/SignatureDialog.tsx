@@ -1,0 +1,889 @@
+import React, { useState, useRef, useEffect } from 'react'
+import {
+  PenTool,
+  X,
+  RotateCcw,
+  Trash2,
+  Save,
+  Check,
+  Star,
+  XSquare,
+  ImagePlus,
+  Stamp,
+  Type,
+  ImageIcon,
+} from 'lucide-react'
+
+interface SignatureDialogProps {
+  isOpen: boolean
+  onClose: () => void
+  onConfirmSignature: (imageDataUrl: string) => void
+}
+
+const STORAGE_KEY_SIGNATURES = 'pdftools_signature_library'
+
+/**
+ * Crops a canvas tightly around non-transparent pixel content with padding.
+ */
+function cropCanvasToContent(canvas: HTMLCanvasElement, padding = 4): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  const width = canvas.width
+  const height = canvas.height
+  const imgData = ctx.getImageData(0, 0, width, height)
+  const data = imgData.data
+
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4
+      const alpha = data[idx + 3]
+      if (alpha > 10) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    return canvas
+  }
+
+  const cropX = Math.max(0, minX - padding)
+  const cropY = Math.max(0, minY - padding)
+  const cropW = Math.min(width - cropX, maxX - minX + 1 + padding * 2)
+  const cropH = Math.min(height - cropY, maxY - minY + 1 + padding * 2)
+
+  const cropped = document.createElement('canvas')
+  cropped.width = cropW
+  cropped.height = cropH
+  const croppedCtx = cropped.getContext('2d')
+  if (!croppedCtx) return canvas
+
+  croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+  return cropped
+}
+
+export const SignatureDialog: React.FC<SignatureDialogProps> = ({
+  isOpen,
+  onClose,
+  onConfirmSignature,
+}) => {
+  const [activeTab, setActiveTab] = useState<'draw' | 'type' | 'upload' | 'symbol'>('draw')
+
+  // Draw Tab
+  const drawCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [isPainting, setIsPainting] = useState(false)
+  const [penThickness, setPenThickness] = useState<number>(3)
+  const [history, setHistory] = useState<ImageData[]>([])
+  const [hasDrawnContent, setHasDrawnContent] = useState(false)
+
+  // Type Tab
+  const [typedText, setTypedText] = useState<string>('Signature Preview')
+  const [selectedFont, setSelectedFont] = useState<string>('Segoe Script')
+  const fonts = [
+    'Segoe Script',
+    'Segoe Print',
+    'Comic Sans MS',
+    'Guttman Yad',
+    'Lucida Handwriting',
+    'Brush Script MT',
+    'Arial',
+    'Caveat',
+    'Dancing Script',
+    'Pacifico',
+    'Great Vibes',
+  ]
+
+  // Upload Tab
+  const [uploadedDataUrl, setUploadedDataUrl] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  // Symbol Tab
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
+
+  // Saved Signatures Library
+  const [savedLibrary, setSavedLibrary] = useState<string[]>([])
+  const [selectedLibraryItem, setSelectedLibraryItem] = useState<string | null>(null)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null)
+
+  // Load saved signatures from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_SIGNATURES)
+      if (stored) {
+        setSavedLibrary(JSON.parse(stored))
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  // Canvas Drawing Logic with Pointer Events for touch & mouse
+  const getCanvasCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = drawCanvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    }
+  }
+
+  const saveCanvasState = () => {
+    const canvas = drawCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const currentData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    setHistory((prev) => [...prev.slice(-15), currentData])
+  }
+
+  const startPainting = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = drawCanvasRef.current
+    if (!canvas) return
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Fallback
+    }
+    saveCanvasState()
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const { x, y } = getCanvasCoords(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    ctx.lineWidth = penThickness * 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = '#000000' // Pure Black
+    setIsPainting(true)
+    setSelectedLibraryItem(null)
+    setHasDrawnContent(true)
+  }
+
+  const paint = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isPainting) return
+    const canvas = drawCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const { x, y } = getCanvasCoords(e)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+
+  const stopPainting = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // Fallback
+      }
+    }
+    if (isPainting) {
+      setIsPainting(false)
+    }
+  }
+
+  const handleUndo = () => {
+    const canvas = drawCanvasRef.current
+    if (!canvas || history.length === 0) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const previous = history[history.length - 1]
+    ctx.putImageData(previous, 0, 0)
+    setHistory((prev) => prev.slice(0, -1))
+    if (history.length === 1) {
+      setHasDrawnContent(false)
+    }
+  }
+
+  const handleClearCanvas = () => {
+    const canvas = drawCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHistory([])
+    setHasDrawnContent(false)
+    setSelectedLibraryItem(null)
+  }
+
+  // Generate transparent PNG from Typed Text (Black, tightly cropped)
+  const generateTypedDataUrl = (): string => {
+    const text = typedText.trim()
+    if (!text) return ''
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 600
+    canvas.height = 200
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return ''
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.font = `64px "${selectedFont}", cursive, sans-serif`
+    ctx.fillStyle = '#000000' // Black
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
+  }
+
+  // Generate transparent PNG from Draw Canvas (Black, tightly cropped)
+  const generateDrawDataUrl = (): string => {
+    const canvas = drawCanvasRef.current
+    if (!canvas) return ''
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
+  }
+
+  // Generate transparent PNG from Symbol (Black, tightly cropped)
+  const generateSymbolDataUrl = (symbolKey: string): string => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 300
+    canvas.height = 150
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return ''
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#000000' // Black
+    ctx.fillStyle = '#000000' // Black
+
+    if (symbolKey === 'checkmark') {
+      ctx.lineWidth = 14
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      ctx.moveTo(60, 80)
+      ctx.lineTo(110, 120)
+      ctx.lineTo(240, 30)
+      ctx.stroke()
+    } else if (symbolKey === 'cross') {
+      ctx.lineWidth = 14
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(70, 35)
+      ctx.lineTo(230, 115)
+      ctx.moveTo(230, 35)
+      ctx.lineTo(70, 115)
+      ctx.stroke()
+    } else if (symbolKey === 'star') {
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      const cx = 150, cy = 75, outer = 55, inner = 25, points = 5
+      for (let i = 0; i < points * 2; i++) {
+        const r = i % 2 === 0 ? outer : inner
+        const a = (i * Math.PI) / points - Math.PI / 2
+        const x = cx + r * Math.cos(a)
+        const y = cy + r * Math.sin(a)
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+    } else if (symbolKey === 'stamp_APPROVED') {
+      ctx.lineWidth = 8
+      ctx.strokeRect(20, 20, 260, 110)
+      ctx.font = 'bold 36px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('APPROVED', 150, 75)
+    }
+
+    const cropped = cropCanvasToContent(canvas, 4)
+    return cropped.toDataURL('image/png')
+  }
+
+  // Handle Image Upload with auto background transparency
+  const handleImageUpload = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const src = e.target?.result as string
+      if (!src) return
+
+      const img = new Image()
+      img.onload = () => {
+        const maxW = 600
+        const maxH = 300
+        let w = img.width
+        let h = img.height
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h)
+          w = Math.round(w * ratio)
+          h = Math.round(h * ratio)
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        ctx.drawImage(img, 0, 0, w, h)
+        const imgData = ctx.getImageData(0, 0, w, h)
+        const data = imgData.data
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+          if (r > 220 && g > 220 && b > 220) {
+            data[i + 3] = 0 // transparent
+          }
+        }
+        ctx.putImageData(imgData, 0, 0)
+        const croppedCanvas = cropCanvasToContent(canvas, 4)
+        const transparentDataUrl = croppedCanvas.toDataURL('image/png')
+        setUploadedDataUrl(transparentDataUrl)
+        setSelectedLibraryItem(null)
+      }
+      img.src = src
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Save Current Signature to Library
+  const handleSaveToLibrary = () => {
+    let currentDataUrl = ''
+    if (selectedLibraryItem) {
+      currentDataUrl = selectedLibraryItem
+    } else if (activeTab === 'draw') {
+      currentDataUrl = generateDrawDataUrl()
+    } else if (activeTab === 'type') {
+      currentDataUrl = generateTypedDataUrl()
+    } else if (activeTab === 'upload' && uploadedDataUrl) {
+      currentDataUrl = uploadedDataUrl
+    } else if (activeTab === 'symbol' && selectedSymbol) {
+      currentDataUrl = generateSymbolDataUrl(selectedSymbol)
+    }
+
+    if (!currentDataUrl) return
+
+    const updated = [currentDataUrl, ...savedLibrary.filter((s) => s !== currentDataUrl).slice(0, 9)]
+    setSavedLibrary(updated)
+    setSelectedLibraryItem(currentDataUrl)
+
+    try {
+      localStorage.setItem(STORAGE_KEY_SIGNATURES, JSON.stringify(updated))
+      setSaveSuccessMsg('Signature saved to library!')
+      setTimeout(() => setSaveSuccessMsg(null), 2500)
+    } catch {
+      try {
+        const trimmed = updated.slice(0, 5)
+        localStorage.setItem(STORAGE_KEY_SIGNATURES, JSON.stringify(trimmed))
+        setSavedLibrary(trimmed)
+        setSaveSuccessMsg('Signature saved to library!')
+        setTimeout(() => setSaveSuccessMsg(null), 2500)
+      } catch {
+        setSaveSuccessMsg('Storage full. Please delete an older signature.')
+        setTimeout(() => setSaveSuccessMsg(null), 3000)
+      }
+    }
+  }
+
+  const handleDeleteSaved = (e: React.MouseEvent, itemDataUrl: string) => {
+    e.stopPropagation()
+    const updated = savedLibrary.filter((s) => s !== itemDataUrl)
+    setSavedLibrary(updated)
+    if (selectedLibraryItem === itemDataUrl) {
+      setSelectedLibraryItem(null)
+      if (uploadedDataUrl === itemDataUrl) {
+        setUploadedDataUrl(null)
+      }
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY_SIGNATURES, JSON.stringify(updated))
+    } catch {
+      // Ignore
+    }
+  }
+
+  // Confirm Signature
+  const handleConfirm = () => {
+    let finalDataUrl = ''
+    if (selectedLibraryItem) {
+      finalDataUrl = selectedLibraryItem
+    } else if (activeTab === 'draw') {
+      finalDataUrl = generateDrawDataUrl()
+    } else if (activeTab === 'type') {
+      finalDataUrl = generateTypedDataUrl()
+    } else if (activeTab === 'upload' && uploadedDataUrl) {
+      finalDataUrl = uploadedDataUrl
+    } else if (activeTab === 'symbol' && selectedSymbol) {
+      finalDataUrl = generateSymbolDataUrl(selectedSymbol)
+    }
+
+    if (!finalDataUrl) return
+    onConfirmSignature(finalDataUrl)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-[#0b111e] border border-slate-700/80 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-slate-100">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800/80 p-4 sm:p-5 shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+              <PenTool className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight">
+                Add Signature
+              </h2>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {/* Method Tabs */}
+          <div className="flex border-b border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('draw')
+                setSelectedLibraryItem(null)
+              }}
+              className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === 'draw'
+                  ? 'border-sky-500 text-sky-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <PenTool className="w-4 h-4" />
+              <span>Draw</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('type')
+                setSelectedLibraryItem(null)
+              }}
+              className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === 'type'
+                  ? 'border-sky-500 text-sky-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Type className="w-4 h-4" />
+              <span>Type</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('upload')
+                setSelectedLibraryItem(null)
+              }}
+              className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === 'upload'
+                  ? 'border-sky-500 text-sky-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span>Upload</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('symbol')
+                setSelectedLibraryItem(null)
+              }}
+              className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === 'symbol'
+                  ? 'border-sky-500 text-sky-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Stamp className="w-4 h-4" />
+              <span>Symbol</span>
+            </button>
+          </div>
+
+          {/* TAB 1: DRAW (Display none to preserve canvas state!) */}
+          <div style={{ display: activeTab === 'draw' ? 'block' : 'none' }} className="space-y-3">
+            <div className="flex items-center justify-end space-x-3 text-xs text-slate-300">
+              <span>Thickness:</span>
+              <input
+                type="range"
+                min={1}
+                max={8}
+                value={penThickness}
+                onChange={(e) => setPenThickness(parseInt(e.target.value, 10))}
+                className="w-32 accent-sky-500 cursor-pointer"
+              />
+              <span className="w-6 font-mono text-sky-400">{penThickness}px</span>
+            </div>
+
+            <div className="relative bg-white rounded-xl border border-slate-300 shadow-inner h-44 flex items-center justify-center overflow-hidden">
+              <canvas
+                ref={drawCanvasRef}
+                width={800}
+                height={220}
+                onPointerDown={startPainting}
+                onPointerMove={paint}
+                onPointerUp={stopPainting}
+                onPointerCancel={stopPainting}
+                onPointerLeave={stopPainting}
+                className="w-full h-full cursor-crosshair touch-none"
+              />
+              {!hasDrawnContent && (
+                <div className="absolute pointer-events-none text-slate-400 text-xs font-medium">
+                  Draw your signature here with mouse, finger, or pen
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center space-x-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={history.length === 0}
+                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Undo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearCanvas}
+                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveToLibrary}
+                disabled={!hasDrawnContent}
+                className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save to Library</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 2: TYPE (Auto-clears 'Signature Preview' on click / focus!) */}
+          <div style={{ display: activeTab === 'type' ? 'block' : 'none' }} className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-300">Type your signature</label>
+              <input
+                type="text"
+                value={typedText}
+                onFocus={() => {
+                  if (typedText === 'Signature Preview') {
+                    setTypedText('')
+                  }
+                }}
+                onClick={() => {
+                  if (typedText === 'Signature Preview') {
+                    setTypedText('')
+                  }
+                }}
+                onChange={(e) => {
+                  setTypedText(e.target.value)
+                  setSelectedLibraryItem(null)
+                }}
+                placeholder="Type your signature"
+                className="w-full bg-[#0c131c] border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+              />
+            </div>
+
+            {/* Font Selector Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {fonts.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFont(f)
+                    setSelectedLibraryItem(null)
+                  }}
+                  style={{ fontFamily: f }}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                    selectedFont === f
+                      ? 'bg-[#0284c7] text-white font-bold ring-1 ring-sky-400'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+
+            {/* Large White Preview Box */}
+            <div className="bg-white rounded-xl border border-slate-300 shadow-inner h-32 flex items-center justify-center p-4">
+              <span
+                style={{ fontFamily: `"${selectedFont}", cursive, sans-serif` }}
+                className="text-3xl text-black select-none"
+              >
+                {typedText || 'Signature Preview'}
+              </span>
+            </div>
+
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={handleSaveToLibrary}
+                disabled={!typedText.trim()}
+                className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-950/40 transition-colors flex items-center space-x-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save to Library</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 3: UPLOAD */}
+          <div style={{ display: activeTab === 'upload' ? 'block' : 'none' }} className="space-y-3">
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/bmp,.png,.jpg,.jpeg,.bmp"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleImageUpload(e.target.files[0])
+                }
+              }}
+            />
+
+            <div
+              onClick={() => uploadInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleImageUpload(e.dataTransfer.files[0])
+                }
+              }}
+              className="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-sky-500 h-44 flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-colors shadow-inner"
+            >
+              {uploadedDataUrl ? (
+                <img
+                  src={uploadedDataUrl}
+                  alt="Uploaded signature"
+                  className="max-h-36 max-w-full object-contain"
+                />
+              ) : (
+                <div className="space-y-2 text-slate-500">
+                  <ImagePlus className="w-8 h-8 mx-auto text-slate-400" />
+                  <div className="text-xs font-bold text-slate-700">
+                    Drag & drop signature image here or click to choose
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Supports PNG, JPG, BMP. Auto background transparency.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center space-x-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => uploadInputRef.current?.click()}
+                className="px-4 py-1.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Choose Image File</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveToLibrary}
+                disabled={!uploadedDataUrl}
+                className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save to Library</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 4: SYMBOL */}
+          <div style={{ display: activeTab === 'symbol' ? 'block' : 'none' }} className="space-y-4">
+            <div className="text-xs font-semibold text-slate-300">Choose a symbol or stamp (Black):</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Checkmark */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSymbol('checkmark')
+                  setSelectedLibraryItem(null)
+                }}
+                className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                  selectedSymbol === 'checkmark'
+                    ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                    : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <Check className="w-8 h-8 text-slate-100 stroke-[3]" />
+                <span className="text-xs font-semibold">Checkmark</span>
+              </button>
+
+              {/* Cross */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSymbol('cross')
+                  setSelectedLibraryItem(null)
+                }}
+                className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                  selectedSymbol === 'cross'
+                    ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                    : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <XSquare className="w-8 h-8 text-slate-100 stroke-[2]" />
+                <span className="text-xs font-semibold">Cross</span>
+              </button>
+
+              {/* Star */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSymbol('star')
+                  setSelectedLibraryItem(null)
+                }}
+                className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                  selectedSymbol === 'star'
+                    ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                    : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <Star className="w-8 h-8 text-slate-100 fill-slate-100" />
+                <span className="text-xs font-semibold">Star</span>
+              </button>
+
+              {/* Approved */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSymbol('stamp_APPROVED')
+                  setSelectedLibraryItem(null)
+                }}
+                className={`p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all ${
+                  selectedSymbol === 'stamp_APPROVED'
+                    ? 'border-sky-500 bg-slate-800 ring-2 ring-sky-400 text-white'
+                    : 'border-slate-800 bg-[#0c131c] text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <div className="px-2 py-1 rounded border-2 border-slate-100 text-slate-100 font-extrabold text-xs tracking-wider">
+                  APPROVED
+                </div>
+                <span className="text-xs font-semibold">Stamp</span>
+              </button>
+            </div>
+
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={handleSaveToLibrary}
+                disabled={!selectedSymbol}
+                className="px-4 py-1.5 bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow transition-colors flex items-center space-x-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save to Library</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Success toast notification when saved to library */}
+          {saveSuccessMsg && (
+            <div className="text-center text-xs text-emerald-400 font-semibold animate-in fade-in duration-150">
+              {saveSuccessMsg}
+            </div>
+          )}
+
+          {/* SAVED SIGNATURES LIBRARY (Clicking item opens it in upload area; has delete icon!) */}
+          <div className="border-t border-slate-800/80 pt-3 space-y-2">
+            <div className="text-xs font-semibold text-slate-300">Saved Signatures Library:</div>
+            {savedLibrary.length === 0 ? (
+              <div className="text-[11px] text-slate-500 italic p-2 bg-slate-900/40 rounded-lg border border-slate-800/60">
+                No saved signatures yet. Use "Save to Library" above to save signatures for quick reuse.
+              </div>
+            ) : (
+              <div className="flex items-center space-x-3 overflow-x-auto py-1">
+                {savedLibrary.map((item, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setSelectedLibraryItem(item)
+                      setUploadedDataUrl(item)
+                      setActiveTab('upload')
+                    }}
+                    className={`relative bg-white rounded-xl p-2 h-16 w-32 shrink-0 flex items-center justify-center cursor-pointer border transition-all ${
+                      selectedLibraryItem === item
+                        ? 'border-[#0284c7] ring-2 ring-[#0284c7] shadow-lg shadow-sky-950/50'
+                        : 'border-slate-300 hover:border-slate-400'
+                    }`}
+                  >
+                    <img src={item} alt="Saved signature" className="max-h-full max-w-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSaved(e, item)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow"
+                      title="Delete saved signature"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sticky Fixed Bottom Footer */}
+        <div className="p-4 sm:p-5 border-t border-slate-800/80 bg-[#0b1324] flex items-center justify-end space-x-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="inline-flex items-center space-x-2 px-5 py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold rounded-xl shadow-md shadow-sky-950/40 transition-colors"
+          >
+            <Check className="w-4 h-4" />
+            <span>Apply Signature</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

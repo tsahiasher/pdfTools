@@ -31,6 +31,36 @@ export interface SignatureOverlay {
   createdAt: number
 }
 
+export interface FormFieldDescriptor {
+  id: string
+  name: string
+  type: 'text' | 'checkbox' | 'radio' | 'choice' | 'signature'
+  rect: [number, number, number, number] // [x1, y1, x2, y2] in PDF coordinates
+  xPercent: number
+  yPercent: number
+  widthPercent: number
+  heightPercent: number
+  value?: string | boolean
+  options?: string[]
+  readOnly?: boolean
+  multiline?: boolean
+  fontSize?: number
+}
+
+export interface CustomTextField {
+  id: string
+  text: string
+  xPercent: number
+  yPercent: number
+  widthPercent: number
+  heightPercent: number
+  fontSize?: number
+  color?: string
+  fontFamily?: string
+  isBold?: boolean
+  isItalic?: boolean
+}
+
 /**
  * Lightweight descriptor representing an individual page in the document.
  * This is the unit of working document state, decoupled from rendered pixel canvases.
@@ -47,6 +77,9 @@ export interface PageDescriptor {
   rotation: number // 0, 90, 180, 270 degrees
   imagePreviewUrl?: string // For direct image display
   signatures?: SignatureOverlay[] // Applied signature overlays
+  formValues?: Record<string, string | boolean> // AcroForm field values
+  customTextFields?: CustomTextField[] // Added custom text fields
+  drawingDataUrl?: string // Transparent PNG drawing & highlighter layer
 }
 
 /**

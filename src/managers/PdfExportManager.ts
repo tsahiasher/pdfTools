@@ -364,60 +364,107 @@ export class PdfExportManager {
   }
 
   /**
-   * Embeds transparent signature images onto a PDF page in intrinsic coordinates.
-   * Accurately accounts for placedRotation so signatures placed on rotated pages are straight,
-   * while post-signing page rotations rotate the signature along with the document.
+   * Embeds transparent signature images, drawings, and text overlays onto a PDF page.
    */
   private async embedSignaturesOnPage(
     doc: PDFDocument,
     pdfPage: any,
     pageDesc: PageDescriptor
   ): Promise<void> {
-    if (!pageDesc.signatures || pageDesc.signatures.length === 0) return
-
     const { width, height } = pdfPage.getSize()
 
-    for (const sig of pageDesc.signatures) {
+    // 1. Embed Freehand Drawings & Highlighter Layer
+    if (pageDesc.drawingDataUrl) {
       try {
-        const base64Data = sig.imageDataUrl.split(',')[1] || sig.imageDataUrl
+        const base64Data = pageDesc.drawingDataUrl.split(',')[1] || pageDesc.drawingDataUrl
         const binaryString = atob(base64Data)
         const bytes = new Uint8Array(binaryString.length)
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i)
         }
 
-        const embeddedPng = await doc.embedPng(bytes)
-        const intrinsic = getSignatureIntrinsicState(sig)
-        const cx = (width * (intrinsic.xPercent + intrinsic.widthPercent / 2)) / 100
-        const cy = (height * (1 - (intrinsic.yPercent + intrinsic.heightPercent / 2) / 100))
-        const w = (width * intrinsic.widthPercent) / 100
-        const h = (height * intrinsic.heightPercent) / 100
-        const placedRot = sig.placedRotation ?? 0
-        const pdfDeg = ((placedRot % 360) + 360) % 360
-
-        let drawX = cx - w / 2
-        let drawY = cy - h / 2
-
-        if (pdfDeg === 90) {
-          drawX = cx + h / 2
-          drawY = cy - w / 2
-        } else if (pdfDeg === 180) {
-          drawX = cx + w / 2
-          drawY = cy + h / 2
-        } else if (pdfDeg === 270) {
-          drawX = cx - h / 2
-          drawY = cy + w / 2
-        }
-
-        pdfPage.drawImage(embeddedPng, {
-          x: drawX,
-          y: drawY,
-          width: w,
-          height: h,
-          rotate: degrees(pdfDeg),
+        const embeddedDrawing = await doc.embedPng(bytes)
+        pdfPage.drawImage(embeddedDrawing, {
+          x: 0,
+          y: 0,
+          width,
+          height,
         })
       } catch (e) {
-        console.error('Failed to embed signature onto page:', e)
+        console.error('Failed to embed drawing layer onto page:', e)
+      }
+    }
+
+    // 2. Embed Signatures
+    if (pageDesc.signatures && pageDesc.signatures.length > 0) {
+      for (const sig of pageDesc.signatures) {
+        try {
+          const base64Data = sig.imageDataUrl.split(',')[1] || sig.imageDataUrl
+          const binaryString = atob(base64Data)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i)
+          }
+
+          const embeddedPng = await doc.embedPng(bytes)
+          const intrinsic = getSignatureIntrinsicState(sig)
+          const cx = (width * (intrinsic.xPercent + intrinsic.widthPercent / 2)) / 100
+          const cy = (height * (1 - (intrinsic.yPercent + intrinsic.heightPercent / 2) / 100))
+          const w = (width * intrinsic.widthPercent) / 100
+          const h = (height * intrinsic.heightPercent) / 100
+          const placedRot = sig.placedRotation ?? 0
+          const pdfDeg = ((placedRot % 360) + 360) % 360
+
+          let drawX = cx - w / 2
+          let drawY = cy - h / 2
+
+          if (pdfDeg === 90) {
+            drawX = cx + h / 2
+            drawY = cy - w / 2
+          } else if (pdfDeg === 180) {
+            drawX = cx + w / 2
+            drawY = cy + h / 2
+          } else if (pdfDeg === 270) {
+            drawX = cx - h / 2
+            drawY = cy + w / 2
+          }
+
+          pdfPage.drawImage(embeddedPng, {
+            x: drawX,
+            y: drawY,
+            width: w,
+            height: h,
+            rotate: degrees(pdfDeg),
+          })
+        } catch (e) {
+          console.error('Failed to embed signature onto page:', e)
+        }
+      }
+    }
+
+    // 3. Populate AcroForm Field Values
+    if (pageDesc.formValues && Object.keys(pageDesc.formValues).length > 0) {
+      try {
+        const form = doc.getForm()
+        for (const [name, val] of Object.entries(pageDesc.formValues)) {
+          try {
+            const field = form.getField(name)
+            if (field) {
+              if (typeof val === 'boolean') {
+                const checkField = form.getCheckBox(name)
+                if (val) checkField.check()
+                else checkField.uncheck()
+              } else if (typeof val === 'string') {
+                const textField = form.getTextField(name)
+                textField.setText(val)
+              }
+            }
+          } catch {
+            // Field might not match in this source page
+          }
+        }
+      } catch (e) {
+        console.warn('Could not populate form fields during export:', e)
       }
     }
   }
