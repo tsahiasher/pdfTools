@@ -186,6 +186,8 @@ const LiftedPageThumbnail: React.FC<{ page: PageDescriptor; zoomLevel: number }>
     maxWidth: thumbnailMaxWidth,
     lazy: false,
     imagePreviewUrl: page.imagePreviewUrl,
+    page,
+    revision: `${page.drawingDataUrl ? 1 : 0}_${page.formValues ? JSON.stringify(page.formValues) : ''}_${page.signatures?.length || 0}_${page.rotation}`,
   })
 
   if (!dataUrl) {

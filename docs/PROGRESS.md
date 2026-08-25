@@ -1,13 +1,14 @@
 # Progress Log
 
-**2026-08-25 — Multiline & Newline (Enter Key) Support for All Text Boxes. ✅ DONE**
-1. Universal Multiline & Newline Support:
-   - Updated `extractPageFormFields` to check PDF flags (`0x1000` bit flag), field height (`heightPercent >= 2.2`), and content (`val.includes('\n')`).
-   - Text boxes with sufficient height or containing newlines automatically render as `<textarea>` with proper multiline wrapping.
-   - Hitting <kbd>Enter</kbd> in any text field automatically inserts a newline and upgrades the input to a multiline textarea.
-   - Updated `ThumbnailRenderManager` to split and render multi-line text values with proportional line-height on preview thumbnails.
-2. Form & Text Mode on Entry:
-   - Configured `PageEditorModal` to always activate `Form & Text` mode by default whenever the editor is opened.
+**2026-08-25 — Restored Full-Card Desktop Dragging & Live Lifted Thumbnail. ✅ DONE**
+1. Full-Card Desktop Dragging:
+   - On desktop (mouse pointers), clicking and dragging anywhere on the page card (preview area, header, footer) initiates lifting and dragging with spring physics.
+   - Preserved mobile touch isolation: touch devices use natural vertical scrolling on the card body, while the dedicated 6-dot `GripVertical` handle initiates touch dragging without scrolling conflicts.
+2. Synchronous Lifted Page Thumbnail:
+   - Initialized `useThumbnail` state with synchronous cached thumbnail lookup, eliminating blank/loading states when cards are lifted.
+   - Passed `page` and `revision` to `LiftedPageThumbnail` so floating lifted cards render all form fields, highlighters, drawings, and signatures.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/components/PageCard.tsx`, `src/components/PageGrid.tsx`, `src/hooks/useThumbnail.ts`, `docs/PROGRESS.md`.
 3. Auto Text Size Capped at Medium:
    - Capped the `Auto` font size calculation to never exceed the `Medium` baseline (`Math.max(8, Math.min(18, Math.round(boxHeightPx * 0.60)))`).
 4. Live Page Card Annotations Thumbnailing:

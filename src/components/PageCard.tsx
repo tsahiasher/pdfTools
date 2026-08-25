@@ -74,8 +74,21 @@ export const PageCard: React.FC<PageCardProps> = ({
     <div
       ref={elementRef}
       onClick={onSelect}
+      onPointerDown={(e) => {
+        // Desktop (mouse): allow clicking and dragging anywhere on the card
+        if (e.pointerType === 'mouse') {
+          const target = e.target as HTMLElement
+          if (
+            !target.closest('button') &&
+            !target.closest('input') &&
+            !target.closest('[role="button"]')
+          ) {
+            onPointerDown?.(e)
+          }
+        }
+      }}
       style={{ borderColor: source?.color || '#0284c7' }}
-      className={`group relative flex flex-col bg-[#131d2a] rounded-xl transition-all duration-150 overflow-hidden select-none h-full touch-pan-y ${
+      className={`group relative flex flex-col bg-[#131d2a] rounded-xl transition-all duration-150 overflow-hidden select-none h-full touch-pan-y cursor-grab active:cursor-grabbing ${
         isDragging
           ? 'opacity-0 pointer-events-none'
           : isSelected

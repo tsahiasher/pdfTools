@@ -21,8 +21,18 @@ export function useThumbnail({
   page,
   revision,
 }: UseThumbnailOptions) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [dataUrl, setDataUrl] = useState<string | null>(() => {
+    if (imagePreviewUrl) return imagePreviewUrl
+    if (sourceId) {
+      return globalCoordinator.getCachedThumbnail(sourceId, pageIndex) || null
+    }
+    return null
+  })
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (imagePreviewUrl) return false
+    if (sourceId && globalCoordinator.getCachedThumbnail(sourceId, pageIndex)) return false
+    return true
+  })
   const [error, setError] = useState<string | null>(null)
   const elementRef = useRef<HTMLDivElement | null>(null)
   const isVisibleRef = useRef<boolean>(!lazy)
