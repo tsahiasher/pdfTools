@@ -27,17 +27,18 @@ export class PdfSourceManager {
   /**
    * Loads a PDF or image file into memory.
    */
-  async loadFile(file: File): Promise<LoadFileResult> {
+  async loadFile(file: File, password?: string): Promise<LoadFileResult> {
     const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)
     const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
 
     if (isImage) {
       return this.loadImageFile(file)
     } else if (isPdf) {
-      return this.loadPdfFile(file)
+      return this.loadPdfFile(file, password)
     } else {
       return {
         success: false,
+        requiresPassword: false,
         fileName: file.name,
         error: 'Unsupported file format. Please upload PDF or image files (PNG, JPG, WebP).'
       }
@@ -161,7 +162,7 @@ export class PdfSourceManager {
    * Loads a PDF file into memory.
    * Preserves pristine bytes for export and passes a detached copy to pdf.js.
    */
-  private async loadPdfFile(file: File): Promise<LoadFileResult> {
+  private async loadPdfFile(file: File, password?: string): Promise<LoadFileResult> {
     const sourceId = `src_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
     try {
@@ -171,26 +172,37 @@ export class PdfSourceManager {
       if (originalBytes.length === 0) {
         return {
           success: false,
+          requiresPassword: false,
           fileName: file.name,
           error: 'File is empty (0 bytes).'
         }
       }
 
-      // 1. Load into @cantoo/pdf-lib using original bytes
+      // 1. Load into @cantoo/pdf-lib using original bytes (with password if supplied)
       let pdfLibDoc: PDFDocument
       try {
-        pdfLibDoc = await PDFDocument.load(originalBytes, { ignoreEncryption: false })
+        pdfLibDoc = await PDFDocument.load(originalBytes, {
+          password: password || undefined,
+          ignoreEncryption: false,
+        })
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err)
-        if (errorMsg.toLowerCase().includes('password') || errorMsg.toLowerCase().includes('encrypt')) {
+        const isPasswordError =
+          errorMsg.toLowerCase().includes('password') ||
+          errorMsg.toLowerCase().includes('encrypt')
+
+        if (isPasswordError) {
           return {
             success: false,
+            requiresPassword: true,
             fileName: file.name,
-            error: 'Password-protected or encrypted PDFs are not supported.'
+            file,
+            isIncorrect: Boolean(password),
           }
         }
         return {
           success: false,
+          requiresPassword: false,
           fileName: file.name,
           error: `Corrupted or invalid PDF: ${errorMsg}`
         }
@@ -203,6 +215,7 @@ export class PdfSourceManager {
         const baseUrl = typeof window !== 'undefined' && window.location ? `${window.location.origin}/` : './'
         const loadingTask = pdfjsLib.getDocument({
           data: pdfJsData,
+          password: password || undefined,
           cMapUrl: `${baseUrl}cmaps/`,
           cMapPacked: true,
           standardFontDataUrl: `${baseUrl}standard_fonts/`,
@@ -210,15 +223,22 @@ export class PdfSourceManager {
         pdfJsDoc = await loadingTask.promise
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err)
-        if (errorMsg.toLowerCase().includes('password')) {
+        const isPasswordError =
+          (err && typeof err === 'object' && 'name' in err && (err as any).name === 'PasswordException') ||
+          errorMsg.toLowerCase().includes('password')
+
+        if (isPasswordError) {
           return {
             success: false,
+            requiresPassword: true,
             fileName: file.name,
-            error: 'Password-protected or encrypted PDFs are not supported.'
+            file,
+            isIncorrect: Boolean(password),
           }
         }
         return {
           success: false,
+          requiresPassword: false,
           fileName: file.name,
           error: `Failed to parse PDF for preview: ${errorMsg}`
         }
@@ -228,6 +248,7 @@ export class PdfSourceManager {
       if (pageCount === 0) {
         return {
           success: false,
+          requiresPassword: false,
           fileName: file.name,
           error: 'PDF contains 0 pages.'
         }

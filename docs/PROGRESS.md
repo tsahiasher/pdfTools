@@ -1,23 +1,14 @@
 # Progress Log
 
-**2026-08-26 — Refactored PdfExportManager & Codebase Cleanup. ✅ DONE**
-1. Refactored `PdfExportManager.ts`:
-   - Extracted duplicate page embedding logic into a single private helper: `appendPageToDoc(targetDoc, pageDesc, source)`.
-   - Unified image embedding (PNG/JPG MIME selection, dimensions, aspect ratio, rotation), PDF page copying, rotation calculations, and signature/drawing/form embedding for both `exportMergedPdf` and `exportSplitPdfParts`.
-   - Eliminated ~50 lines of duplicate code.
-2. Removed Unused Dependencies:
-   - Uninstalled `clsx` and `tailwind-merge` (project exclusively uses standard template literals for conditional Tailwind classes).
-3. Removed Dead / Orphaned Components:
-   - Deleted `src/components/SignModal.tsx` (~43.2 KB, 1,114 lines of orphaned code from previous standalone modal iteration).
-4. Removed Unused / Obsolete Methods:
-   - Removed `renderPageTextLayer` from `PdfSourceManager.ts` and `PdfCoordinator.ts` (replaced by Geometric Text Block Line Selection Engine).
-   - Removed `addSignatureToPage` and `removeSignatureFromPage` from `PdfCoordinator.ts` and `usePdfCoordinator.ts` (replaced by unified `updatePageEditorData`).
-   - Removed `reorderPages` from `PdfCoordinator.ts` and `usePdfCoordinator.ts` (all drag actions use `reorderMultiplePages`).
-5. Cleaned Up Deprecated Types & Properties:
-   - Removed unused `CustomTextField` interface and `customTextFields` field from `domain/types.ts`, `PageDescriptor`, `ThumbnailRenderManager.ts`, `PageCard.tsx`, and `PageEditorModal.tsx`.
-   - Cleaned up `'select'` from `EditorTool` type in `PageEditorModal.tsx`.
-6. Package Cleanliness:
-   - Moved `@types/jszip` to `devDependencies` in `package.json`.
+**2026-08-26 — Interactive PDF Unlock & Password Removal on Export. ✅ DONE**
+1. Interactive PDF Password Unlock:
+   - Added automatic detection of password-protected / encrypted PDFs during upload in `PdfSourceManager.ts`.
+   - Built `UnlockPdfModal.tsx` displaying filename, queue position (e.g. `1 of 2`), password input with show/hide toggle, inline retry error message, and unlock/skip actions.
+   - Decrypts files in memory across both `@cantoo/pdf-lib` and `pdfjs-dist` without modifying disk or uploading to servers.
+2. Automatic Password Removal on Export:
+   - Merged, split, or selected PDF exports use `PDFDocument.create()` to generate standard, completely unencrypted, password-free PDF files.
+Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
+Files touched: `src/domain/types.ts`, `src/managers/PdfSourceManager.ts`, `src/coordinator/PdfCoordinator.ts`, `src/hooks/usePdfCoordinator.ts`, `src/components/UnlockPdfModal.tsx`, `src/App.tsx`, `docs/DECISIONS.md`, `docs/PROGRESS.md`.
 Proof: `npx tsc --noEmit` and `npm run build` compiled with 0 errors. Vite dev server running on `http://localhost:5173/`.
 Files touched: `src/managers/PdfExportManager.ts`, `src/components/SignModal.tsx` (deleted), `src/domain/types.ts`, `src/coordinator/PdfCoordinator.ts`, `src/hooks/usePdfCoordinator.ts`, `src/managers/PdfSourceManager.ts`, `src/managers/ThumbnailRenderManager.ts`, `src/components/PageCard.tsx`, `src/components/PageEditorModal.tsx`, `package.json`, `package-lock.json`, `docs/PROGRESS.md`.
 3. Auto Text Size Capped at Medium:

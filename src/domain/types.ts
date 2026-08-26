@@ -101,6 +101,13 @@ export interface BookmarkItem {
   right?: number | null
 }
 
+export interface PasswordPromptRequest {
+  id: string
+  file: File
+  fileName: string
+  isIncorrect?: boolean
+}
+
 /**
  * State of the working document.
  */
@@ -112,6 +119,7 @@ export interface DocumentState {
   isExporting: boolean
   includeBookmarks: boolean
   errors: PdfLoadError[]
+  pendingPasswordRequests: PasswordPromptRequest[]
 }
 
 /**
@@ -119,4 +127,5 @@ export interface DocumentState {
  */
 export type LoadFileResult =
   | { success: true; source: PdfSource; pages: PageDescriptor[] }
-  | { success: false; fileName: string; error: string }
+  | { success: false; requiresPassword: true; fileName: string; file: File; isIncorrect?: boolean }
+  | { success: false; requiresPassword?: false; fileName: string; error: string }

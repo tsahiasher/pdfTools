@@ -21,6 +21,7 @@ export class PdfCoordinator {
     isExporting: false,
     includeBookmarks: false,
     errors: [],
+    pendingPasswordRequests: [],
   }
 
   private listeners = new Set<StateListener>()
@@ -51,6 +52,7 @@ export class PdfCoordinator {
       pages: [...this.state.pages],
       selectedPageIds: new Set(this.state.selectedPageIds),
       errors: [...this.state.errors],
+      pendingPasswordRequests: [...this.state.pendingPasswordRequests],
     }
     this.state = snapshot
     for (const listener of this.listeners) {
@@ -80,6 +82,13 @@ export class PdfCoordinator {
           result.pages.map((p) => ({ ...p }))
         )
         newPages.push(...result.pages)
+      } else if (result.requiresPassword) {
+        this.state.pendingPasswordRequests.push({
+          id: `req_pwd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          file: result.file,
+          fileName: result.fileName,
+          isIncorrect: result.isIncorrect,
+        })
       } else {
         newErrors.push({
           id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -93,6 +102,70 @@ export class PdfCoordinator {
     this.state.pages.push(...newPages)
     this.state.errors.push(...newErrors)
     this.state.isProcessing = false
+    this.notify()
+  }
+
+  /**
+   * Attempts to decrypt and load a password-protected PDF.
+   */
+  async unlockFileWithPassword(requestId: string, password: string): Promise<boolean> {
+    const request = this.state.pendingPasswordRequests.find((r) => r.id === requestId)
+    if (!request) return false
+
+    this.state.isProcessing = true
+    this.notify()
+
+    try {
+      const result = await this.sourceManager.loadFile(request.file, password)
+
+      if (result.success) {
+        this.state.sources.set(result.source.id, result.source)
+        this.originalPagesBySource.set(
+          result.source.id,
+          result.pages.map((p) => ({ ...p }))
+        )
+        this.state.pages.push(...result.pages)
+        this.state.pendingPasswordRequests = this.state.pendingPasswordRequests.filter((r) => r.id !== requestId)
+        this.state.isProcessing = false
+        this.notify()
+        return true
+      } else if (result.requiresPassword) {
+        this.state.pendingPasswordRequests = this.state.pendingPasswordRequests.map((r) =>
+          r.id === requestId ? { ...r, isIncorrect: true } : r
+        )
+        this.state.isProcessing = false
+        this.notify()
+        return false
+      } else {
+        this.state.errors.push({
+          id: `err_${Date.now()}`,
+          fileName: request.fileName,
+          message: result.error,
+          timestamp: Date.now(),
+        })
+        this.state.pendingPasswordRequests = this.state.pendingPasswordRequests.filter((r) => r.id !== requestId)
+        this.state.isProcessing = false
+        this.notify()
+        return false
+      }
+    } catch (err) {
+      this.state.errors.push({
+        id: `err_${Date.now()}`,
+        fileName: request.fileName,
+        message: `Failed to unlock PDF: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: Date.now(),
+      })
+      this.state.isProcessing = false
+      this.notify()
+      return false
+    }
+  }
+
+  /**
+   * Cancels/skips a pending password request for a file.
+   */
+  cancelPasswordRequest(requestId: string): void {
+    this.state.pendingPasswordRequests = this.state.pendingPasswordRequests.filter((r) => r.id !== requestId)
     this.notify()
   }
 
@@ -413,6 +486,7 @@ export class PdfCoordinator {
     this.state.pages = []
     this.state.selectedPageIds.clear()
     this.state.errors = []
+    this.state.pendingPasswordRequests = []
     this.state.isProcessing = false
     this.state.isExporting = false
     this.lastSelectedPageId = null

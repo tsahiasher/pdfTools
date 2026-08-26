@@ -12,6 +12,7 @@ import { ExportImagesModal } from './components/ExportImagesModal'
 import { PrintModal } from './components/PrintModal'
 import { SplitModal } from './components/SplitModal'
 import { PageEditorModal } from './components/PageEditorModal'
+import { UnlockPdfModal } from './components/UnlockPdfModal'
 import { DragOverlay } from './components/DragOverlay'
 import { ReorderFilesWarningModal } from './components/ReorderFilesWarningModal'
 import { usePdfCoordinator } from './hooks/usePdfCoordinator'
@@ -27,6 +28,7 @@ export const App: React.FC = () => {
     isExporting,
     includeBookmarks,
     errors,
+    pendingPasswordRequests,
     addFiles,
     removeSource,
     moveSource,
@@ -48,6 +50,8 @@ export const App: React.FC = () => {
     updatePageEditorData,
     setIncludeBookmarks,
     hasCustomPageOrder,
+    unlockFileWithPassword,
+    cancelPasswordRequest,
   } = usePdfCoordinator()
 
   const [zoomLevel, setZoomLevel] = useState<number>(3)
@@ -335,6 +339,14 @@ export const App: React.FC = () => {
           setPendingSourceMove(null)
         }}
         onConfirm={handleConfirmReorder}
+      />
+
+      <UnlockPdfModal
+        request={pendingPasswordRequests.length > 0 ? pendingPasswordRequests[0] : null}
+        totalQueueCount={pendingPasswordRequests.length}
+        currentIndex={0}
+        onUnlock={unlockFileWithPassword}
+        onCancel={cancelPasswordRequest}
       />
 
       {/* Global Drag-and-Drop Overlay with Background Blur */}

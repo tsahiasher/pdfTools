@@ -118,6 +118,20 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     [coordinator]
   )
 
+  const unlockFileWithPassword = useCallback(
+    (requestId: string, password: string) => {
+      return coordinator.unlockFileWithPassword(requestId, password)
+    },
+    [coordinator]
+  )
+
+  const cancelPasswordRequest = useCallback(
+    (requestId: string) => {
+      coordinator.cancelPasswordRequest(requestId)
+    },
+    [coordinator]
+  )
+
   return {
     ...state,
     coordinator,
@@ -142,5 +156,7 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     updatePageEditorData,
     setIncludeBookmarks,
     hasCustomPageOrder,
+    unlockFileWithPassword,
+    cancelPasswordRequest,
   }
 }

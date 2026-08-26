@@ -58,8 +58,16 @@ A comprehensive, distraction-free document editor (`PageEditorModal.tsx`) availa
 
 ---
 
-### ✍️ 4. Digital Signatures, Stamps & Relative Rotation
-- **4 Signature Input Methods** (`SignatureDialog.tsx` & `SignModal.tsx`):
+### 🔓 4. Interactive PDF Unlock & Automatic Password Removal
+- **Automated Encryption Detection**: When a password-protected PDF is uploaded, an interactive **Unlock Document** dialog (`UnlockPdfModal.tsx`) automatically appears instead of an error.
+- **Secure Password Prompting**: Includes document title, sequential queueing for multiple protected files, show/hide password toggle, and inline retry handling.
+- **In-Memory Decryption**: Unlocks documents in-memory across `@cantoo/pdf-lib` and `pdfjs-dist` without modifying disk bytes or sending data to servers.
+- **Automatic Password Removal on Export**: All merged, split, or selected PDF exports generate completely unencrypted, password-free PDF files.
+
+---
+
+### ✍️ 5. Digital Signatures, Stamps & Relative Rotation
+- **4 Signature Input Methods** (`SignatureDialog.tsx`):
   1. **Draw**: Smooth freehand drawing canvas with stroke width slider, undo, and clear controls.
   2. **Type**: Cursive and handwriting typography selector (Segoe Script, Segoe Print, Comic Sans MS, Guttman Yad, Lucida Handwriting, Brush Script MT, Arial, Caveat, Dancing Script, Pacifico, Great Vibes).
   3. **Upload**: Drag-and-drop or select an image with automated white background transparency filtering.
@@ -69,13 +77,13 @@ A comprehensive, distraction-free document editor (`PageEditorModal.tsx`) availa
 
 ---
 
-### 📑 5. Bookmarks & PDF Outline Hierarchy Preservation
+### 📑 6. Bookmarks & PDF Outline Hierarchy Preservation
 - **Preserve Table of Contents**: Optional **Bookmarks** checkbox on export.
 - Extracts document outline hierarchies using `pdfjs-dist` and reconstructs linked PDF outlines (`/Outlines` catalog with `/Fit`, `/XYZ`, `/FitH`, etc.) mapped losslessly to the new page positions.
 
 ---
 
-### 🖼️ 6. Lossless Vector PDF & High-Resolution Image Export
+### 🖼️ 7. Lossless Vector PDF & High-Resolution Image Export
 - **Lossless Vector PDF Assembly**: Reconstructs merged PDFs using `@cantoo/pdf-lib` via `copyPages()` directly from original bytes, preserving 300+ DPI scans, vector text, and embedded fonts without rasterization.
 - **Export Images** (`ExportImagesModal.tsx`): Render and download selected or all document pages as standalone high-resolution `.png` or `.jpg` image files with customizable base filenames.
 - **Save Selected**: Export only selected pages as a dedicated PDF.
@@ -83,7 +91,7 @@ A comprehensive, distraction-free document editor (`PageEditorModal.tsx`) availa
 
 ---
 
-### 🖨️ 7. Client-Side Print Preview & Settings
+### 🖨️ 8. Client-Side Print Preview & Settings
 - Integrated Print modal (`PrintModal.tsx`) supporting target printer selection, paper sizes (Letter, A4, Legal, etc.), color/grayscale modes, custom page ranges, and client-side document printing.
 
 ---
@@ -183,6 +191,7 @@ pdfTools/
 │   │   ├── PageCard.tsx            # Thumbnail preview, rotation, delete & edit actions
 │   │   ├── PageEditorModal.tsx     # Full-screen page editor & annotation studio
 │   │   ├── SignatureDialog.tsx     # In-place signature creation modal
+│   │   ├── UnlockPdfModal.tsx      # Password prompt & document decrypt dialog
 │   │   ├── Dropzone.tsx            # Multi-format file upload zone
 │   │   ├── SplitModal.tsx          # Split PDF modal with presets & ranges
 │   │   ├── ExportImagesModal.tsx   # PNG / JPG image export modal
