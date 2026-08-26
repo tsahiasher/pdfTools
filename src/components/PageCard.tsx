@@ -312,7 +312,7 @@ export const PageCard: React.FC<PageCardProps> = ({
           P. {sequenceIndex}
         </span>
         <div className="flex items-center space-x-1.5">
-          {(page.drawingDataUrl || (page.customTextFields && page.customTextFields.length > 0) || (page.formValues && Object.keys(page.formValues).length > 0)) && (
+          {(page.drawingDataUrl || (page.formValues && Object.keys(page.formValues).length > 0)) && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-medium">
               Edited
             </span>

@@ -45,53 +45,7 @@ export class PdfExportManager {
         throw new Error(`Missing source for page ${i + 1} (${pageDesc.sourceName}).`)
       }
 
-      if (pageDesc.sourceType === 'image') {
-        // Embed image directly into the PDF
-        const isPng = source.imageMimeType === 'image/png' || source.name.toLowerCase().endsWith('.png')
-        let embeddedImage
-        if (isPng) {
-          embeddedImage = await mergedDoc.embedPng(source.originalBytes)
-        } else {
-          embeddedImage = await mergedDoc.embedJpg(source.originalBytes)
-        }
-
-        const imgWidth = pageDesc.width
-        const imgHeight = pageDesc.height
-
-        const newPage = mergedDoc.addPage([imgWidth, imgHeight])
-        newPage.drawImage(embeddedImage, {
-          x: 0,
-          y: 0,
-          width: imgWidth,
-          height: imgHeight,
-        })
-
-        if (pageDesc.rotation !== 0) {
-          newPage.setRotation(degrees((pageDesc.rotation % 360 + 360) % 360))
-        }
-
-        await this.embedSignaturesOnPage(mergedDoc, newPage, pageDesc)
-      } else {
-        // Copy PDF page from source document
-        const sourceDoc = this.sourceManager.getPdfLibDocument(pageDesc.sourceId)
-        if (!sourceDoc) {
-          throw new Error(
-            `Missing source document for page ${i + 1} (${pageDesc.sourceName}). Source may have been removed.`
-          )
-        }
-
-        const [copiedPage] = await mergedDoc.copyPages(sourceDoc, [pageDesc.sourcePageIndex])
-
-        // Apply rotation if modified
-        if (pageDesc.rotation !== 0) {
-          const currentRotation = copiedPage.getRotation().angle || 0
-          const finalRotation = ((currentRotation + pageDesc.rotation) % 360 + 360) % 360
-          copiedPage.setRotation(degrees(finalRotation))
-        }
-
-        const addedPage = mergedDoc.addPage(copiedPage)
-        await this.embedSignaturesOnPage(mergedDoc, addedPage, pageDesc)
-      }
+      await this.appendPageToDoc(mergedDoc, pageDesc, source)
     }
 
     // Embed Bookmarks / Outlines if requested
@@ -134,43 +88,7 @@ export class PdfExportManager {
 
         if (!source) continue
 
-        if (pageDesc.sourceType === 'image') {
-          const isPng = source.imageMimeType === 'image/png' || source.name.toLowerCase().endsWith('.png')
-          const embeddedImage = isPng
-            ? await partDoc.embedPng(source.originalBytes)
-            : await partDoc.embedJpg(source.originalBytes)
-
-          const imgWidth = pageDesc.width
-          const imgHeight = pageDesc.height
-
-          const newPage = partDoc.addPage([imgWidth, imgHeight])
-          newPage.drawImage(embeddedImage, {
-            x: 0,
-            y: 0,
-            width: imgWidth,
-            height: imgHeight,
-          })
-
-          if (pageDesc.rotation !== 0) {
-            newPage.setRotation(degrees((pageDesc.rotation % 360 + 360) % 360))
-          }
-
-          await this.embedSignaturesOnPage(partDoc, newPage, pageDesc)
-        } else {
-          const sourceDoc = this.sourceManager.getPdfLibDocument(pageDesc.sourceId)
-          if (!sourceDoc) continue
-
-          const [copiedPage] = await partDoc.copyPages(sourceDoc, [pageDesc.sourcePageIndex])
-
-          if (pageDesc.rotation !== 0) {
-            const currentRotation = copiedPage.getRotation().angle || 0
-            const finalRotation = ((currentRotation + pageDesc.rotation) % 360 + 360) % 360
-            copiedPage.setRotation(degrees(finalRotation))
-          }
-
-          const addedPage = partDoc.addPage(copiedPage)
-          await this.embedSignaturesOnPage(partDoc, addedPage, pageDesc)
-        }
+        await this.appendPageToDoc(partDoc, pageDesc, source)
       }
 
       const partBytes = await partDoc.save()
@@ -361,6 +279,58 @@ export class PdfExportManager {
       ])
     }
     return context.obj([pageRef, PDFName.of('Fit')])
+  }
+
+  /**
+   * Appends a single page (PDF or Image) to the target PDFDocument,
+   * applying rotations and embedding all signatures, drawings, and form values.
+   */
+  private async appendPageToDoc(
+    targetDoc: PDFDocument,
+    pageDesc: PageDescriptor,
+    source: PdfSource
+  ): Promise<void> {
+    if (pageDesc.sourceType === 'image') {
+      const isPng = source.imageMimeType === 'image/png' || source.name.toLowerCase().endsWith('.png')
+      const embeddedImage = isPng
+        ? await targetDoc.embedPng(source.originalBytes)
+        : await targetDoc.embedJpg(source.originalBytes)
+
+      const imgWidth = pageDesc.width
+      const imgHeight = pageDesc.height
+      const newPage = targetDoc.addPage([imgWidth, imgHeight])
+
+      newPage.drawImage(embeddedImage, {
+        x: 0,
+        y: 0,
+        width: imgWidth,
+        height: imgHeight,
+      })
+
+      if (pageDesc.rotation !== 0) {
+        newPage.setRotation(degrees(((pageDesc.rotation % 360) + 360) % 360))
+      }
+
+      await this.embedSignaturesOnPage(targetDoc, newPage, pageDesc)
+    } else {
+      const sourceDoc = this.sourceManager.getPdfLibDocument(pageDesc.sourceId)
+      if (!sourceDoc) {
+        throw new Error(
+          `Missing source document for ${pageDesc.sourceName}. Source may have been removed.`
+        )
+      }
+
+      const [copiedPage] = await targetDoc.copyPages(sourceDoc, [pageDesc.sourcePageIndex])
+
+      if (pageDesc.rotation !== 0) {
+        const currentRotation = copiedPage.getRotation().angle || 0
+        const finalRotation = ((currentRotation + pageDesc.rotation) % 360 + 360) % 360
+        copiedPage.setRotation(degrees(finalRotation))
+      }
+
+      const addedPage = targetDoc.addPage(copiedPage)
+      await this.embedSignaturesOnPage(targetDoc, addedPage, pageDesc)
+    }
   }
 
   /**

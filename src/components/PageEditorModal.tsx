@@ -18,7 +18,7 @@ import { globalCoordinator } from '../coordinator/PdfCoordinator'
 import { SignatureDialog } from './SignatureDialog'
 import { getSignatureIntrinsicState } from '../lib/signatureUtils'
 
-export type EditorTool = 'select' | 'form' | 'pen' | 'highlighter' | 'signature' | 'eraser'
+export type EditorTool = 'form' | 'pen' | 'highlighter' | 'signature' | 'eraser'
 export type FieldFontSizeOption = 'auto' | 'small' | 'medium' | 'large'
 
 interface PageEditorModalProps {
@@ -29,7 +29,6 @@ interface PageEditorModalProps {
     pageId: string,
     data: {
       formValues: Record<string, string | boolean>
-      customTextFields: any[]
       drawingDataUrl?: string
       signatures: SignatureOverlay[]
     }
@@ -842,7 +841,7 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
 
     setSignatures((prev) => [...prev, newSig])
     setSigDragBox(null)
-    setActiveTool('select')
+    setActiveTool('form')
   }
 
   // --- Form Value Change ---
@@ -875,7 +874,6 @@ export const PageEditorModal: React.FC<PageEditorModalProps> = ({
 
     onSave(page.id, {
       formValues: { ...formValues },
-      customTextFields: [],
       drawingDataUrl,
       signatures: [...signatures],
     })

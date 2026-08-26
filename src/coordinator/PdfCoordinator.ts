@@ -193,21 +193,6 @@ export class PdfCoordinator {
   }
 
   /**
-   * Reorders an individual page from one index to another.
-   */
-  reorderPages(fromIndex: number, toIndex: number): void {
-    if (fromIndex < 0 || fromIndex >= this.state.pages.length) return
-    if (toIndex < 0 || toIndex >= this.state.pages.length) return
-    if (fromIndex === toIndex) return
-
-    const pages = [...this.state.pages]
-    const [moved] = pages.splice(fromIndex, 1)
-    pages.splice(toIndex, 0, moved)
-    this.state.pages = pages
-    this.notify()
-  }
-
-  /**
    * Moves a list of pages (single or multiple) to a target index position.
    */
   reorderMultiplePages(draggedIds: string[], targetIndex: number): void {
@@ -259,65 +244,12 @@ export class PdfCoordinator {
   }
 
   /**
-   * Adds a signature overlay to a specific page.
-   */
-  addSignatureToPage(
-    pageId: string,
-    signature: {
-      imageDataUrl: string
-      xPercent: number
-      yPercent: number
-      widthPercent: number
-      heightPercent: number
-      placedRotation?: number
-    }
-  ): void {
-    const page = this.state.pages.find((p) => p.id === pageId)
-    if (!page) return
-
-    const placedRotation =
-      signature.placedRotation !== undefined
-        ? ((signature.placedRotation % 360) + 360) % 360
-        : page.rotation || 0
-
-    const newSig: import('../domain/types').SignatureOverlay = {
-      id: `sig_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      imageDataUrl: signature.imageDataUrl,
-      xPercent: Math.max(0, Math.min(100, signature.xPercent)),
-      yPercent: Math.max(0, Math.min(100, signature.yPercent)),
-      widthPercent: Math.max(1, Math.min(100, signature.widthPercent)),
-      heightPercent: Math.max(1, Math.min(100, signature.heightPercent)),
-      placedRotation,
-      createdAt: Date.now(),
-    }
-
-    const currentSigs = page.signatures ? [...page.signatures] : []
-    currentSigs.push(newSig)
-
-    this.state.pages = this.state.pages.map((p) => (p.id === pageId ? { ...p, signatures: currentSigs } : p))
-    this.notify()
-  }
-
-  /**
-   * Removes a signature overlay from a page.
-   */
-  removeSignatureFromPage(pageId: string, signatureId: string): void {
-    const page = this.state.pages.find((p) => p.id === pageId)
-    if (!page || !page.signatures) return
-
-    const updatedSigs = page.signatures.filter((s) => s.id !== signatureId)
-    this.state.pages = this.state.pages.map((p) => (p.id === pageId ? { ...p, signatures: updatedSigs } : p))
-    this.notify()
-  }
-
-  /**
-   * Updates all editor annotations (form values, custom text, drawings, and signatures) on a page.
+   * Updates all editor annotations (form values, drawings, and signatures) on a page.
    */
   updatePageEditorData(
     pageId: string,
     data: {
       formValues?: Record<string, string | boolean>
-      customTextFields?: import('../domain/types').CustomTextField[]
       drawingDataUrl?: string
       signatures?: import('../domain/types').SignatureOverlay[]
     }
@@ -330,7 +262,6 @@ export class PdfCoordinator {
         return {
           ...p,
           formValues: data.formValues !== undefined ? { ...data.formValues } : p.formValues,
-          customTextFields: data.customTextFields !== undefined ? [...data.customTextFields] : p.customTextFields,
           drawingDataUrl: data.drawingDataUrl !== undefined ? data.drawingDataUrl : p.drawingDataUrl,
           signatures: data.signatures !== undefined ? [...data.signatures] : p.signatures,
         }
@@ -355,13 +286,6 @@ export class PdfCoordinator {
    */
   async extractPageTextBlocks(sourceId: string, pageIndex: number, rotation = 0) {
     return this.sourceManager.extractPageTextBlocks(sourceId, pageIndex, rotation)
-  }
-
-  /**
-   * Renders the native interactive PDF text layer into a container element.
-   */
-  async renderPageTextLayer(sourceId: string, pageIndex: number, container: HTMLElement, targetWidth: number, rotation = 0) {
-    return this.sourceManager.renderPageTextLayer(sourceId, pageIndex, container, targetWidth, rotation)
   }
 
   /**

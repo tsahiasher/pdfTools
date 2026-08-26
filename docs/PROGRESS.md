@@ -1,16 +1,25 @@
 # Progress Log
 
-**2026-08-25 — Updated Freehand Icon to PenLine & Added Rectangle Mode. ✅ DONE**
-1. Freehand & Rectangle Buttons:
-   - **Freehand**: Updated with the cleaner **`PenLine`** icon (pen drawing a stroke line).
-   - **Rectangle**: Styled with the **`Square`** icon.
-2. Signature Tool Icon:
-   - Updated the Signature button icon to `Signature` (freehand cursive line).
-3. Freehand & Rectangle Highlighter Modes:
-   - **Rectangle Mode**: Crosshair cursor (`+`), live rectangular draft preview, transparent yellow highlight commit on release.
-   - **Freehand Mode**: Dual-mode text selection or smooth freehand spline ribbon.
-Proof: `npx tsc --noEmit` and `npm run build` passed with 0 errors. Vite server running on `http://localhost:5173/`.
-Files touched: `src/components/PageEditorModal.tsx`, `docs/PROGRESS.md`.
+**2026-08-26 — Refactored PdfExportManager & Codebase Cleanup. ✅ DONE**
+1. Refactored `PdfExportManager.ts`:
+   - Extracted duplicate page embedding logic into a single private helper: `appendPageToDoc(targetDoc, pageDesc, source)`.
+   - Unified image embedding (PNG/JPG MIME selection, dimensions, aspect ratio, rotation), PDF page copying, rotation calculations, and signature/drawing/form embedding for both `exportMergedPdf` and `exportSplitPdfParts`.
+   - Eliminated ~50 lines of duplicate code.
+2. Removed Unused Dependencies:
+   - Uninstalled `clsx` and `tailwind-merge` (project exclusively uses standard template literals for conditional Tailwind classes).
+3. Removed Dead / Orphaned Components:
+   - Deleted `src/components/SignModal.tsx` (~43.2 KB, 1,114 lines of orphaned code from previous standalone modal iteration).
+4. Removed Unused / Obsolete Methods:
+   - Removed `renderPageTextLayer` from `PdfSourceManager.ts` and `PdfCoordinator.ts` (replaced by Geometric Text Block Line Selection Engine).
+   - Removed `addSignatureToPage` and `removeSignatureFromPage` from `PdfCoordinator.ts` and `usePdfCoordinator.ts` (replaced by unified `updatePageEditorData`).
+   - Removed `reorderPages` from `PdfCoordinator.ts` and `usePdfCoordinator.ts` (all drag actions use `reorderMultiplePages`).
+5. Cleaned Up Deprecated Types & Properties:
+   - Removed unused `CustomTextField` interface and `customTextFields` field from `domain/types.ts`, `PageDescriptor`, `ThumbnailRenderManager.ts`, `PageCard.tsx`, and `PageEditorModal.tsx`.
+   - Cleaned up `'select'` from `EditorTool` type in `PageEditorModal.tsx`.
+6. Package Cleanliness:
+   - Moved `@types/jszip` to `devDependencies` in `package.json`.
+Proof: `npx tsc --noEmit` and `npm run build` compiled with 0 errors. Vite dev server running on `http://localhost:5173/`.
+Files touched: `src/managers/PdfExportManager.ts`, `src/components/SignModal.tsx` (deleted), `src/domain/types.ts`, `src/coordinator/PdfCoordinator.ts`, `src/hooks/usePdfCoordinator.ts`, `src/managers/PdfSourceManager.ts`, `src/managers/ThumbnailRenderManager.ts`, `src/components/PageCard.tsx`, `src/components/PageEditorModal.tsx`, `package.json`, `package-lock.json`, `docs/PROGRESS.md`.
 3. Auto Text Size Capped at Medium:
    - Capped the `Auto` font size calculation to never exceed the `Medium` baseline (`Math.max(8, Math.min(18, Math.round(boxHeightPx * 0.60)))`).
 4. Live Page Card Annotations Thumbnailing:

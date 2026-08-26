@@ -485,38 +485,6 @@ export class PdfSourceManager {
     }
   }
 
-  /**
-   * Renders the native interactive PDF text layer into a container element.
-   */
-  async renderPageTextLayer(
-    sourceId: string,
-    pageIndex: number,
-    container: HTMLElement,
-    targetWidth: number,
-    rotation = 0
-  ): Promise<void> {
-    const pdfJsDoc = this.pdfJsDocs.get(sourceId)
-    if (!pdfJsDoc) return
-
-    try {
-      const page = await pdfJsDoc.getPage(pageIndex + 1)
-      const rot = ((rotation % 360) + 360) % 360
-      const unscaled = page.getViewport({ scale: 1.0, rotation: rot })
-      const scale = targetWidth > 0 ? targetWidth / unscaled.width : 1.0
-      const viewport = page.getViewport({ scale, rotation: rot })
-      const textContent = await page.getTextContent()
-
-      container.innerHTML = ''
-      const textLayer = new pdfjsLib.TextLayer({
-        textContentSource: textContent,
-        container,
-        viewport,
-      })
-      await textLayer.render()
-    } catch (err) {
-      console.warn('Failed to render text layer:', err)
-    }
-  }
 
   /**
    * Extracts the full bookmark outline hierarchy from a PDF source using pdf.js.

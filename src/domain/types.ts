@@ -47,20 +47,6 @@ export interface FormFieldDescriptor {
   fontSize?: number
 }
 
-export interface CustomTextField {
-  id: string
-  text: string
-  xPercent: number
-  yPercent: number
-  widthPercent: number
-  heightPercent: number
-  fontSize?: number
-  color?: string
-  fontFamily?: string
-  isBold?: boolean
-  isItalic?: boolean
-}
-
 /**
  * Lightweight descriptor representing an individual page in the document.
  * This is the unit of working document state, decoupled from rendered pixel canvases.
@@ -78,7 +64,6 @@ export interface PageDescriptor {
   imagePreviewUrl?: string // For direct image display
   signatures?: SignatureOverlay[] // Applied signature overlays
   formValues?: Record<string, string | boolean> // AcroForm field values
-  customTextFields?: CustomTextField[] // Added custom text fields
   drawingDataUrl?: string // Transparent PNG drawing & highlighter layer
 }
 

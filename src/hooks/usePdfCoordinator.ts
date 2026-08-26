@@ -23,10 +23,6 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     coordinator.moveSource(sourceId, direction)
   }, [coordinator])
 
-  const reorderPages = useCallback((fromIndex: number, toIndex: number) => {
-    coordinator.reorderPages(fromIndex, toIndex)
-  }, [coordinator])
-
   const reorderMultiplePages = useCallback((draggedIds: string[], targetIndex: number) => {
     coordinator.reorderMultiplePages(draggedIds, targetIndex)
   }, [coordinator])
@@ -97,30 +93,6 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     [coordinator]
   )
 
-  const addSignatureToPage = useCallback(
-    (
-      pageId: string,
-      signature: {
-        imageDataUrl: string
-        xPercent: number
-        yPercent: number
-        widthPercent: number
-        heightPercent: number
-        placedRotation?: number
-      }
-    ) => {
-      coordinator.addSignatureToPage(pageId, signature)
-    },
-    [coordinator]
-  )
-
-  const removeSignatureFromPage = useCallback(
-    (pageId: string, signatureId: string) => {
-      coordinator.removeSignatureFromPage(pageId, signatureId)
-    },
-    [coordinator]
-  )
-
   const setIncludeBookmarks = useCallback(
     (include: boolean) => {
       coordinator.setIncludeBookmarks(include)
@@ -137,7 +109,6 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
       pageId: string,
       data: {
         formValues?: Record<string, string | boolean>
-        customTextFields?: import('../domain/types').CustomTextField[]
         drawingDataUrl?: string
         signatures?: import('../domain/types').SignatureOverlay[]
       }
@@ -153,7 +124,6 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     addFiles,
     removeSource,
     moveSource,
-    reorderPages,
     reorderMultiplePages,
     rotatePage,
     rotateSelectedPages,
@@ -169,8 +139,6 @@ export function usePdfCoordinator(coordinator: PdfCoordinator = globalCoordinato
     exportSelectedPdf,
     exportImages,
     exportSplitPdf,
-    addSignatureToPage,
-    removeSignatureFromPage,
     updatePageEditorData,
     setIncludeBookmarks,
     hasCustomPageOrder,

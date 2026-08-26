@@ -43,8 +43,7 @@ export class ThumbnailRenderManager {
       pageDesc &&
       ((pageDesc.formValues && Object.keys(pageDesc.formValues).length > 0) ||
         pageDesc.drawingDataUrl ||
-        (pageDesc.signatures && pageDesc.signatures.length > 0) ||
-        (pageDesc.customTextFields && pageDesc.customTextFields.length > 0))
+        (pageDesc.signatures && pageDesc.signatures.length > 0))
     ) {
       try {
         const scale = Math.min(maxWidth / (pageDesc.width || 600), 1.5)
@@ -293,44 +292,7 @@ export class ThumbnailRenderManager {
       baseCtx.drawImage(img, 0, 0, baseW, baseH)
     }
 
-    // Step 2a: Composite custom text fields onto base canvas
-    if (page.customTextFields && page.customTextFields.length > 0) {
-      for (const field of page.customTextFields) {
-        if (!field.text) continue
-        const fx = (baseW * field.xPercent) / 100
-        const fy = (baseH * field.yPercent) / 100
-        const fw = (baseW * field.widthPercent) / 100
-
-        baseCtx.save()
-        const fontSizePx = Math.max(12, Math.round((field.fontSize || 14) * (scale / 1.5)))
-        const fontStyle = `${field.isItalic ? 'italic ' : ''}${field.isBold ? 'bold ' : ''}`
-        baseCtx.font = `${fontStyle}${fontSizePx}px ${field.fontFamily || 'sans-serif'}`
-        baseCtx.fillStyle = field.color || '#000000'
-        baseCtx.textBaseline = 'top'
-
-        // Render text with word wrap
-        const words = field.text.split(' ')
-        let line = ''
-        let currentY = fy + 4
-        const lineHeight = fontSizePx * 1.25
-
-        for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' '
-          const metrics = baseCtx.measureText(testLine)
-          if (metrics.width > fw && n > 0) {
-            baseCtx.fillText(line, fx + 4, currentY)
-            line = words[n] + ' '
-            currentY += lineHeight
-          } else {
-            line = testLine
-          }
-        }
-        baseCtx.fillText(line, fx + 4, currentY)
-        baseCtx.restore()
-      }
-    }
-
-    // Step 2a-2: Composite AcroForm field values onto base canvas
+    // Step 2a: Composite AcroForm field values onto base canvas
     if (page.formValues && Object.keys(page.formValues).length > 0 && page.sourceType === 'pdf') {
       try {
         const fields = await this.sourceManager.extractPageFormFields(page.sourceId, page.sourcePageIndex, 0)
